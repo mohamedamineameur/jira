@@ -15,6 +15,7 @@ class CreateUserAction
             $data['password_hash'] = $data['password'];
             unset($data['password']);
         }
+        unset($data['password_confirmation']);
 
         return User::query()->create($data);
     }

@@ -5,6 +5,7 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -83,5 +84,15 @@ class User extends Authenticatable
     public function sessions(): HasMany
     {
         return $this->hasMany(UserSession::class);
+    }
+
+    public function admin(): HasOne
+    {
+        return $this->hasOne(Admin::class);
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->admin()->where('is_active', true)->exists();
     }
 }

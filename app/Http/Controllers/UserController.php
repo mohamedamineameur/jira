@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreUserRequest;
-use App\Http\Requests\UpdateUserRequest;
+use App\Http\Requests\UpdateUserByAdminRequest;
+use App\Http\Requests\UpdateUserPasswordRequest;
+use App\Http\Requests\UpdateUserProfileRequest;
 use App\Models\User;
 use App\Services\UserService;
 use Illuminate\Http\JsonResponse;
@@ -41,9 +43,29 @@ class UserController extends Controller
         ]);
     }
 
-    public function update(UpdateUserRequest $request, User $user): JsonResponse
+    public function updateProfile(UpdateUserProfileRequest $request, User $user): JsonResponse
     {
-        $updatedUser = $this->userService->update($user, $request->validated());
+        $updatedUser = $this->userService->updateProfile($user, $request->validated());
+
+        return response()->json([
+            'data' => $updatedUser,
+            'state' => $this->userService->state($updatedUser)->value,
+        ]);
+    }
+
+    public function updatePassword(UpdateUserPasswordRequest $request, User $user): JsonResponse
+    {
+        $updatedUser = $this->userService->updatePassword($user, $request->validated()['password']);
+
+        return response()->json([
+            'data' => $updatedUser,
+            'state' => $this->userService->state($updatedUser)->value,
+        ]);
+    }
+
+    public function updateByAdmin(UpdateUserByAdminRequest $request, User $user): JsonResponse
+    {
+        $updatedUser = $this->userService->updateByAdmin($user, $request->validated());
 
         return response()->json([
             'data' => $updatedUser,

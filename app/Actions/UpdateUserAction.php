@@ -15,6 +15,7 @@ class UpdateUserAction
             $data['password_hash'] = $data['password'];
             unset($data['password']);
         }
+        unset($data['password_confirmation']);
 
         $user->fill($data);
         $user->save();

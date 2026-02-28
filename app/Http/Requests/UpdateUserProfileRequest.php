@@ -5,9 +5,8 @@ namespace App\Http\Requests;
 use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\Password;
 
-class UpdateUserRequest extends FormRequest
+class UpdateUserProfileRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -30,11 +29,6 @@ class UpdateUserRequest extends FormRequest
                 'max:255',
                 Rule::unique('users', 'email')->ignore($user->id, 'id'),
             ],
-            'password' => ['sometimes', 'string', Password::defaults()],
-            'is_active' => ['sometimes', 'boolean'],
-            'email_verified' => ['sometimes', 'boolean'],
-            'otp_hash' => ['nullable', 'string'],
-            'token_hash' => ['nullable', 'string'],
         ];
     }
 }

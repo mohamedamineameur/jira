@@ -30,7 +30,19 @@ class UserService
         return $this->createUserAction->execute($data);
     }
 
-    public function update(User $user, array $data): User
+    public function updateProfile(User $user, array $data): User
+    {
+        return $this->updateUserAction->execute($user, $data);
+    }
+
+    public function updatePassword(User $user, string $password): User
+    {
+        return $this->updateUserAction->execute($user, [
+            'password' => $password,
+        ]);
+    }
+
+    public function updateByAdmin(User $user, array $data): User
     {
         return $this->updateUserAction->execute($user, $data);
     }
