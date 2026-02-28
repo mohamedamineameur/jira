@@ -7,7 +7,7 @@ use App\Models\Ticket;
 class UpdateTicketAction
 {
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function execute(Ticket $ticket, array $data): Ticket
     {

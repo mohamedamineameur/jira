@@ -16,8 +16,7 @@ class OrganizationMemberService
         private readonly CreateOrganizationMemberAction $createOrganizationMemberAction,
         private readonly UpdateOrganizationMemberAction $updateOrganizationMemberAction,
         private readonly DeleteOrganizationMemberAction $deleteOrganizationMemberAction,
-    ) {
-    }
+    ) {}
 
     public function paginate(Organization $organization, int $perPage = 15): LengthAwarePaginator
     {
@@ -30,7 +29,7 @@ class OrganizationMemberService
     }
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function create(Organization $organization, array $data): OrganizationMember
     {

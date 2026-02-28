@@ -7,7 +7,7 @@ use App\Models\Project;
 class CreateProjectAction
 {
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function execute(array $data): Project
     {

@@ -7,7 +7,7 @@ use App\Models\TicketLabel;
 class CreateTicketLabelAction
 {
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function execute(array $data): TicketLabel
     {

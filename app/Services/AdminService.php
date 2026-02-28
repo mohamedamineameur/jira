@@ -14,8 +14,7 @@ class AdminService
         private readonly CreateAdminAction $createAdminAction,
         private readonly UpdateAdminAction $updateAdminAction,
         private readonly DeleteAdminAction $deleteAdminAction,
-    ) {
-    }
+    ) {}
 
     public function paginate(int $perPage = 15): LengthAwarePaginator
     {
@@ -26,7 +25,7 @@ class AdminService
     }
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function create(array $data): Admin
     {
@@ -34,7 +33,7 @@ class AdminService
     }
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function update(Admin $admin, array $data): Admin
     {

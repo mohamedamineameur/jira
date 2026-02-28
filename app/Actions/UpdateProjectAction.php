@@ -7,7 +7,7 @@ use App\Models\Project;
 class UpdateProjectAction
 {
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function execute(Project $project, array $data): Project
     {

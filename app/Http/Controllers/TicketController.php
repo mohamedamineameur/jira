@@ -14,9 +14,7 @@ use Illuminate\Http\Request;
 
 class TicketController extends Controller
 {
-    public function __construct(private readonly TicketService $ticketService)
-    {
-    }
+    public function __construct(private readonly TicketService $ticketService) {}
 
     public function index(Request $request, Organization $organization, Project $project): JsonResponse
     {

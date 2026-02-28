@@ -7,7 +7,7 @@ use App\Models\User;
 class UpdateUserAction
 {
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function execute(User $user, array $data): User
     {

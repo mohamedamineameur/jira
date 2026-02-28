@@ -16,8 +16,7 @@ class TicketLabelService
         private readonly CreateTicketLabelAction $createTicketLabelAction,
         private readonly UpdateTicketLabelAction $updateTicketLabelAction,
         private readonly DeleteTicketLabelAction $deleteTicketLabelAction,
-    ) {
-    }
+    ) {}
 
     public function paginate(Ticket $ticket, int $perPage = 15): LengthAwarePaginator
     {

@@ -12,9 +12,7 @@ use Illuminate\Http\Request;
 
 class OrganizationMemberController extends Controller
 {
-    public function __construct(private readonly OrganizationMemberService $organizationMemberService)
-    {
-    }
+    public function __construct(private readonly OrganizationMemberService $organizationMemberService) {}
 
     public function index(Request $request, Organization $organization): JsonResponse
     {

@@ -15,9 +15,7 @@ use Illuminate\Http\Request;
 
 class CommentController extends Controller
 {
-    public function __construct(private readonly CommentService $commentService)
-    {
-    }
+    public function __construct(private readonly CommentService $commentService) {}
 
     public function index(
         Request $request,

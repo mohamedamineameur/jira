@@ -13,9 +13,7 @@ use Illuminate\Http\Request;
 
 class LabelController extends Controller
 {
-    public function __construct(private readonly LabelService $labelService)
-    {
-    }
+    public function __construct(private readonly LabelService $labelService) {}
 
     public function index(Request $request, Organization $organization, Project $project): JsonResponse
     {

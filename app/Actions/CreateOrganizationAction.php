@@ -7,7 +7,7 @@ use App\Models\Organization;
 class CreateOrganizationAction
 {
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function execute(array $data): Organization
     {

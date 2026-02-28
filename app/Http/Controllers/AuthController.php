@@ -17,8 +17,7 @@ class AuthController extends Controller
     public function __construct(
         private readonly UserSessionService $userSessionService,
         private readonly SessionTokenService $sessionTokenService,
-    ) {
-    }
+    ) {}
 
     public function login(LoginRequest $request): JsonResponse
     {

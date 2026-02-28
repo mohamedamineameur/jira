@@ -13,9 +13,7 @@ use Illuminate\Http\Request;
 
 class TicketLabelController extends Controller
 {
-    public function __construct(private readonly TicketLabelService $ticketLabelService)
-    {
-    }
+    public function __construct(private readonly TicketLabelService $ticketLabelService) {}
 
     public function index(
         Request $request,

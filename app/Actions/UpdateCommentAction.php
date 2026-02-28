@@ -7,7 +7,7 @@ use App\Models\Comment;
 class UpdateCommentAction
 {
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function execute(Comment $comment, array $data): Comment
     {

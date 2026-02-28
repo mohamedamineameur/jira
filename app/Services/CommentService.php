@@ -15,8 +15,7 @@ class CommentService
         private readonly CreateCommentAction $createCommentAction,
         private readonly UpdateCommentAction $updateCommentAction,
         private readonly DeleteCommentAction $deleteCommentAction,
-    ) {
-    }
+    ) {}
 
     public function paginate(Ticket $ticket, int $perPage = 15): LengthAwarePaginator
     {

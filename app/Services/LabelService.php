@@ -15,8 +15,7 @@ class LabelService
         private readonly CreateLabelAction $createLabelAction,
         private readonly UpdateLabelAction $updateLabelAction,
         private readonly DeleteLabelAction $deleteLabelAction,
-    ) {
-    }
+    ) {}
 
     public function paginate(Project $project, int $perPage = 15): LengthAwarePaginator
     {
@@ -29,7 +28,7 @@ class LabelService
     }
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function create(Project $project, array $data): Label
     {
@@ -40,7 +39,7 @@ class LabelService
     }
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function update(Label $label, array $data): Label
     {

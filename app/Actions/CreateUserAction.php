@@ -7,7 +7,7 @@ use App\Models\User;
 class CreateUserAction
 {
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function execute(array $data): User
     {

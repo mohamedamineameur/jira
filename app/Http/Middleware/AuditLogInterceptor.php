@@ -128,7 +128,7 @@ class AuditLogInterceptor
     }
 
     /**
-     * @param array<string, mixed> $after
+     * @param  array<string, mixed>  $after
      * @return array{entity_type: string|null, entity_id: string|null}
      */
     private function extractContextFromPayload(Request $request, array $after): array

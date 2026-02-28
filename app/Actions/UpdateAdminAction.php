@@ -7,7 +7,7 @@ use App\Models\Admin;
 class UpdateAdminAction
 {
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function execute(Admin $admin, array $data): Admin
     {

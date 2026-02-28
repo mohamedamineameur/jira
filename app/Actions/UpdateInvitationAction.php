@@ -7,7 +7,7 @@ use App\Models\Invitation;
 class UpdateInvitationAction
 {
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function execute(Invitation $invitation, array $data): Invitation
     {

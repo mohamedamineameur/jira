@@ -13,9 +13,7 @@ use Illuminate\Http\Request;
 
 class InvitationController extends Controller
 {
-    public function __construct(private readonly InvitationService $invitationService)
-    {
-    }
+    public function __construct(private readonly InvitationService $invitationService) {}
 
     public function index(Request $request, Organization $organization): JsonResponse
     {

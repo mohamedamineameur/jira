@@ -10,9 +10,7 @@ use Illuminate\Http\Request;
 
 class UserSessionController extends Controller
 {
-    public function __construct(private readonly UserSessionService $userSessionService)
-    {
-    }
+    public function __construct(private readonly UserSessionService $userSessionService) {}
 
     public function index(Request $request): JsonResponse
     {

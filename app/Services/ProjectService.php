@@ -15,8 +15,7 @@ class ProjectService
         private readonly CreateProjectAction $createProjectAction,
         private readonly UpdateProjectAction $updateProjectAction,
         private readonly DeleteProjectAction $deleteProjectAction,
-    ) {
-    }
+    ) {}
 
     public function paginate(Organization $organization, int $perPage = 15): LengthAwarePaginator
     {
@@ -29,7 +28,7 @@ class ProjectService
     }
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function create(Organization $organization, array $data, string $createdBy): Project
     {
@@ -41,7 +40,7 @@ class ProjectService
     }
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function update(Project $project, array $data): Project
     {

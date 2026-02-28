@@ -7,7 +7,7 @@ use App\Models\Label;
 class CreateLabelAction
 {
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function execute(array $data): Label
     {

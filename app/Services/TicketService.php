@@ -15,8 +15,7 @@ class TicketService
         private readonly CreateTicketAction $createTicketAction,
         private readonly UpdateTicketAction $updateTicketAction,
         private readonly DeleteTicketAction $deleteTicketAction,
-    ) {
-    }
+    ) {}
 
     public function paginate(Project $project, int $perPage = 15): LengthAwarePaginator
     {
@@ -29,7 +28,7 @@ class TicketService
     }
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function create(Project $project, array $data, string $reporterId): Ticket
     {
@@ -41,7 +40,7 @@ class TicketService
     }
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function update(Ticket $ticket, array $data): Ticket
     {

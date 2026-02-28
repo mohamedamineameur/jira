@@ -12,8 +12,7 @@ class UserSessionService
     public function __construct(
         private readonly CreateUserSessionAction $createUserSessionAction,
         private readonly RevokeUserSessionAction $revokeUserSessionAction,
-    ) {
-    }
+    ) {}
 
     public function paginate(int $perPage = 15): LengthAwarePaginator
     {
@@ -24,7 +23,7 @@ class UserSessionService
     }
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function create(array $data): UserSession
     {

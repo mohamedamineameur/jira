@@ -12,9 +12,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 class EnsureAuthenticated
 {
-    public function __construct(private readonly SessionTokenService $sessionTokenService)
-    {
-    }
+    public function __construct(private readonly SessionTokenService $sessionTokenService) {}
 
     /**
      * Handle an incoming request.

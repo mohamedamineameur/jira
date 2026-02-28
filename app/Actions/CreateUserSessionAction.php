@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Hash;
 class CreateUserSessionAction
 {
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function execute(array $data): UserSession
     {
