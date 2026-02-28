@@ -6,9 +6,8 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Project extends Model
+class Label extends Model
 {
     use HasFactory, HasUuids;
 
@@ -26,17 +25,20 @@ class Project extends Model
      */
     public $incrementing = false;
 
+    public $timestamps = true;
+
+    public const UPDATED_AT = null;
+
     /**
      * @var list<string>
      */
     protected $fillable = [
-        'organization_id',
+        'project_id',
         'name',
-        'description',
-        'key',
-        'created_by',
+        'color',
         'is_deleted',
         'deleted_at',
+        'created_at',
     ];
 
     /**
@@ -47,26 +49,12 @@ class Project extends Model
         return [
             'is_deleted' => 'boolean',
             'deleted_at' => 'datetime',
+            'created_at' => 'datetime',
         ];
     }
 
-    public function organization(): BelongsTo
+    public function project(): BelongsTo
     {
-        return $this->belongsTo(Organization::class);
-    }
-
-    public function creator(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'created_by');
-    }
-
-    public function tickets(): HasMany
-    {
-        return $this->hasMany(Ticket::class, 'project_id');
-    }
-
-    public function labels(): HasMany
-    {
-        return $this->hasMany(Label::class, 'project_id');
+        return $this->belongsTo(Project::class);
     }
 }
