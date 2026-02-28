@@ -6,11 +6,12 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Label extends Model
+class AuditLog extends Model
 {
     use HasFactory, HasUuids;
+
+    protected $table = 'audit_logs';
 
     /**
      * The "type" of the primary key ID.
@@ -34,9 +35,13 @@ class Label extends Model
      * @var list<string>
      */
     protected $fillable = [
-        'project_id',
-        'name',
-        'color',
+        'entity_type',
+        'entity_id',
+        'action',
+        'performed_by',
+        'before',
+        'after',
+        'ip_address',
         'is_deleted',
         'deleted_at',
         'created_at',
@@ -48,19 +53,16 @@ class Label extends Model
     protected function casts(): array
     {
         return [
+            'before' => 'array',
+            'after' => 'array',
             'is_deleted' => 'boolean',
             'deleted_at' => 'datetime',
             'created_at' => 'datetime',
         ];
     }
 
-    public function project(): BelongsTo
+    public function performer(): BelongsTo
     {
-        return $this->belongsTo(Project::class);
-    }
-
-    public function ticketLabels(): HasMany
-    {
-        return $this->hasMany(TicketLabel::class, 'label_id');
+        return $this->belongsTo(User::class, 'performed_by');
     }
 }

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\AuditLogInterceptor;
 use App\Http\Middleware\EnsureAuthenticated;
 use App\Http\Middleware\EnsureUserIsAdmin;
 use Illuminate\Foundation\Application;
@@ -15,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
+            'audit.log' => AuditLogInterceptor::class,
             'auth.api' => EnsureAuthenticated::class,
             'admin' => EnsureUserIsAdmin::class,
         ]);

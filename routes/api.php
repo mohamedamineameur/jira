@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\InvitationController;
@@ -9,16 +10,19 @@ use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\OrganizationMemberController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TicketController;
+use App\Http\Controllers\TicketLabelController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserSessionController;
 use Illuminate\Support\Facades\Route;
 
-Route::post('users', [UserController::class, 'store']);
-Route::post('login', [AuthController::class, 'login']);
+Route::post('users', [UserController::class, 'store'])->middleware('audit.log');
+Route::post('login', [AuthController::class, 'login'])->middleware('audit.log');
 
-Route::middleware('auth.api')->group(function (): void {
+Route::middleware(['auth.api', 'audit.log'])->group(function (): void {
     Route::post('logout', [AuthController::class, 'logout']);
     Route::get('me', [UserController::class, 'me']);
+    Route::get('audit-logs', [AuditLogController::class, 'index'])->middleware('admin');
+    Route::get('audit-logs/{auditLog}', [AuditLogController::class, 'show'])->middleware('admin');
     Route::apiResource('users', UserController::class)->only([
         'index',
         'show',
@@ -49,6 +53,9 @@ Route::middleware('auth.api')->group(function (): void {
     Route::get('organizations/{organization}/projects/{project}/tickets/{ticket}', [TicketController::class, 'show']);
     Route::patch('organizations/{organization}/projects/{project}/tickets/{ticket}', [TicketController::class, 'update']);
     Route::delete('organizations/{organization}/projects/{project}/tickets/{ticket}', [TicketController::class, 'destroy']);
+    Route::get('organizations/{organization}/projects/{project}/tickets/{ticket}/labels', [TicketLabelController::class, 'index']);
+    Route::post('organizations/{organization}/projects/{project}/tickets/{ticket}/labels', [TicketLabelController::class, 'store']);
+    Route::delete('organizations/{organization}/projects/{project}/tickets/{ticket}/labels/{label}', [TicketLabelController::class, 'destroy']);
     Route::get('organizations/{organization}/projects/{project}/tickets/{ticket}/comments', [CommentController::class, 'index']);
     Route::post('organizations/{organization}/projects/{project}/tickets/{ticket}/comments', [CommentController::class, 'store']);
     Route::get('organizations/{organization}/projects/{project}/tickets/{ticket}/comments/{comment}', [CommentController::class, 'show']);
