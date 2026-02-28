@@ -48,6 +48,18 @@
             "@php artisan config:clear --ansi",
             "@php artisan test"
         ],
+        "lint": [
+            "./vendor/bin/pint --test"
+        ],
+        "format": [
+            "./vendor/bin/pint"
+        ],
+        "prettier:check": [
+            "npx prettier --check \"**/*.{md,yml,yaml,json}\""
+        ],
+        "prettier:write": [
+            "npx prettier --write \"**/*.{md,yml,yaml,json}\""
+        ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
             "@php artisan package:discover --ansi"

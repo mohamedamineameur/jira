@@ -1,59 +1,96 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Laravel Project API
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Laravel backend with a structured architecture based on `Models`, `Policies`, `Services`, `Actions`, custom middleware, and feature tests.
 
-## About Laravel
+## Getting Started
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+### Requirements
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+- PHP `^8.2`
+- Composer
+- Node.js `>=20` (for Prettier)
+- SQLite
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+### Setup
 
-## Learning Laravel
+```bash
+composer install
+cp .env.example .env
+php artisan key:generate
+touch database/database.sqlite
+php artisan migrate
+```
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+### Run Locally
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+```bash
+php artisan serve
+```
 
-## Laravel Sponsors
+## Project Architecture
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+The project follows a clear separation of responsibilities:
 
-### Premium Partners
+- `app/Models`: Eloquent models (UUIDs, relationships, domain soft deletion).
+- `app/Http/Controllers`: API endpoints and HTTP orchestration.
+- `app/Http/Requests`: input validation (centralized rules).
+- `app/Services`: application business logic.
+- `app/Actions`: atomic create/update/delete operations.
+- `app/Policies`: fine-grained authorization per entity.
+- `app/Http/Middleware`: API auth, admin guard, audit log interceptor.
+- `database/migrations`: full SQL schema.
+- `tests/Feature`: end-to-end API tests (in-memory SQLite).
+- `routes/api.php`: REST routes and custom routes (`/me`, `/login`, `/logout`, etc.).
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+## Domain Model
 
-## Contributing
+The main entities exposed through the API are:
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+- `users`
+- `user_sessions`
+- `admins`
+- `organizations`
+- `organization_members`
+- `invitations`
+- `projects`
+- `tickets`
+- `comments`
+- `labels`
+- `ticket_labels`
+- `audit_logs`
 
-## Code of Conduct
+Important notes:
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+- `UUID` identifiers are used for primary domain entities.
+- Domain soft deletion (`is_deleted` + `deleted_at`) is used on relevant tables.
+- `organization_members` and `ticket_labels` use composite keys.
 
-## Security Vulnerabilities
+## Quality Gates
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+- `composer lint`: Laravel Pint check mode.
+- `composer format`: Laravel Pint auto-format.
+- `composer prettier:check`: Prettier check (Markdown/YAML/JSON).
+- `composer prettier:write`: Prettier auto-format.
 
-## License
+## Tests
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+```bash
+composer test
+```
+
+## Continuous Integration
+
+A workflow is configured in `.github/workflows/ci.yml`.
+
+On every `push` and `pull_request`, it runs:
+- lint with Laravel Pint;
+- Prettier check;
+- Laravel tests.
+
+## CLI Utilities
+
+Create/activate an admin user:
+
+```bash
+php artisan app:create-admin
+```
