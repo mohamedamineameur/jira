@@ -83,6 +83,7 @@ composer test
 A workflow is configured in `.github/workflows/ci.yml`.
 
 On every `push` and `pull_request`, it runs:
+
 - lint with Laravel Pint;
 - Prettier check;
 - Laravel tests.
