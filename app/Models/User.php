@@ -86,6 +86,16 @@ class User extends Authenticatable
         return $this->hasMany(UserSession::class);
     }
 
+    public function organizationsOwned(): HasMany
+    {
+        return $this->hasMany(Organization::class, 'owner_id');
+    }
+
+    public function organizationMemberships(): HasMany
+    {
+        return $this->hasMany(OrganizationMember::class, 'user_id');
+    }
+
     public function admin(): HasOne
     {
         return $this->hasOne(Admin::class);

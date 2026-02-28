@@ -11,16 +11,14 @@ class UserApiTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_it_creates_a_user_with_required_fields_only(): void
+    public function test_guest_can_create_user_with_required_fields_only(): void
     {
-        $payload = [
+        $response = $this->postJson('/api/users', [
             'name' => 'Amine',
             'email' => 'amine@example.com',
             'password' => 'StrongPass123!',
             'password_confirmation' => 'StrongPass123!',
-        ];
-
-        $response = $this->postJson('/api/users', $payload);
+        ]);
 
         $response->assertCreated()
             ->assertJsonPath('data.name', 'Amine')
@@ -34,14 +32,69 @@ class UserApiTest extends TestCase
         ]);
     }
 
-    public function test_it_updates_user_profile(): void
+    public function test_user_creation_validates_payload(): void
     {
+        User::factory()->create([
+            'email' => 'taken@example.com',
+        ]);
+
+        $response = $this->postJson('/api/users', [
+            'name' => '',
+            'email' => 'taken@example.com',
+            'password' => 'short',
+            'password_confirmation' => 'different',
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'name',
+                'email',
+                'password',
+            ]);
+    }
+
+    public function test_guest_cannot_access_protected_user_routes(): void
+    {
+        $user = User::factory()->create();
+
+        $this->getJson('/api/users')->assertUnauthorized();
+        $this->getJson("/api/users/{$user->id}")->assertUnauthorized();
+        $this->patchJson("/api/users/{$user->id}/profile", [
+            'name' => 'Nope',
+        ])->assertUnauthorized();
+        $this->patchJson("/api/users/{$user->id}/password", [
+            'password' => 'AnotherPass123!',
+            'password_confirmation' => 'AnotherPass123!',
+        ])->assertUnauthorized();
+        $this->patchJson("/api/users/{$user->id}/admin", [
+            'is_active' => false,
+        ])->assertUnauthorized();
+        $this->deleteJson("/api/users/{$user->id}")->assertUnauthorized();
+    }
+
+    public function test_authenticated_user_can_list_and_show_users(): void
+    {
+        $authUser = User::factory()->create();
+        $user = User::factory()->create();
+
+        $this->actingAs($authUser)->getJson('/api/users')
+            ->assertOk()
+            ->assertJsonStructure(['data', 'current_page', 'per_page', 'total']);
+
+        $this->actingAs($authUser)->getJson("/api/users/{$user->id}")
+            ->assertOk()
+            ->assertJsonPath('data.id', $user->id);
+    }
+
+    public function test_authenticated_user_can_update_profile(): void
+    {
+        $authUser = User::factory()->create();
         $user = User::factory()->create([
             'name' => 'Old Name',
             'email' => 'old@example.com',
         ]);
 
-        $response = $this->patchJson("/api/users/{$user->id}/profile", [
+        $response = $this->actingAs($authUser)->patchJson("/api/users/{$user->id}/profile", [
             'name' => 'New Name',
             'email' => 'new@example.com',
         ]);
@@ -51,11 +104,26 @@ class UserApiTest extends TestCase
             ->assertJsonPath('data.email', 'new@example.com');
     }
 
-    public function test_it_updates_user_password(): void
+    public function test_profile_update_validates_unique_email(): void
     {
+        $authUser = User::factory()->create();
+        $targetUser = User::factory()->create();
+        $existingUser = User::factory()->create([
+            'email' => 'existing@example.com',
+        ]);
+
+        $this->actingAs($authUser)->patchJson("/api/users/{$targetUser->id}/profile", [
+            'email' => $existingUser->email,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['email']);
+    }
+
+    public function test_authenticated_user_can_update_password(): void
+    {
+        $authUser = User::factory()->create();
         $user = User::factory()->create();
 
-        $response = $this->patchJson("/api/users/{$user->id}/password", [
+        $response = $this->actingAs($authUser)->patchJson("/api/users/{$user->id}/password", [
             'password' => 'AnotherPass123!',
             'password_confirmation' => 'AnotherPass123!',
         ]);
@@ -66,14 +134,24 @@ class UserApiTest extends TestCase
         $this->assertTrue(password_verify('AnotherPass123!', $user->password_hash));
     }
 
-    public function test_it_updates_user_by_admin_with_is_active_only(): void
+    public function test_password_update_requires_confirmation(): void
+    {
+        $authUser = User::factory()->create();
+        $user = User::factory()->create();
+
+        $this->actingAs($authUser)->patchJson("/api/users/{$user->id}/password", [
+            'password' => 'AnotherPass123!',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['password']);
+    }
+
+    public function test_admin_can_update_user_by_admin_route_with_is_active_only(): void
     {
         $adminUser = User::factory()->create();
         Admin::query()->create([
             'user_id' => $adminUser->id,
             'is_active' => true,
         ]);
-
         $user = User::factory()->create([
             'is_active' => true,
         ]);
@@ -94,10 +172,10 @@ class UserApiTest extends TestCase
 
     public function test_non_admin_cannot_update_user_by_admin_route(): void
     {
+        $normalUser = User::factory()->create();
         $user = User::factory()->create([
             'is_active' => true,
         ]);
-        $normalUser = User::factory()->create();
 
         $response = $this->actingAs($normalUser)->patchJson("/api/users/{$user->id}/admin", [
             'is_active' => false,
@@ -108,12 +186,13 @@ class UserApiTest extends TestCase
 
     public function test_it_soft_deletes_user_with_flags(): void
     {
+        $authUser = User::factory()->create();
         $user = User::factory()->create([
             'is_deleted' => false,
             'deleted_at' => null,
         ]);
 
-        $response = $this->deleteJson("/api/users/{$user->id}");
+        $response = $this->actingAs($authUser)->deleteJson("/api/users/{$user->id}");
 
         $response->assertOk()
             ->assertJsonPath('data.is_deleted', true)

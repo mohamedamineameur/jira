@@ -17,6 +17,6 @@ class CreateUserAction
         }
         unset($data['password_confirmation']);
 
-        return User::query()->create($data);
+        return User::query()->create($data)->refresh();
     }
 }

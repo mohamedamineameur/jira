@@ -25,6 +25,24 @@ class UserController extends Controller
         return response()->json($users);
     }
 
+    public function me(Request $request): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $request->user();
+
+        if (! $user) {
+            return response()->json([
+                'message' => 'Unauthenticated.',
+            ], 401);
+        }
+
+        return response()->json([
+            'data' => $user,
+            'state' => $this->userService->state($user)->value,
+            'is_admin' => $user->isAdmin(),
+        ]);
+    }
+
     public function store(StoreUserRequest $request): JsonResponse
     {
         $user = $this->userService->create($request->validated());
