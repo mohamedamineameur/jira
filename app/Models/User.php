@@ -96,6 +96,26 @@ class User extends Authenticatable
         return $this->hasMany(OrganizationMember::class, 'user_id');
     }
 
+    public function projectsCreated(): HasMany
+    {
+        return $this->hasMany(Project::class, 'created_by');
+    }
+
+    public function assignedTickets(): HasMany
+    {
+        return $this->hasMany(Ticket::class, 'assignee_id');
+    }
+
+    public function reportedTickets(): HasMany
+    {
+        return $this->hasMany(Ticket::class, 'reporter_id');
+    }
+
+    public function comments(): HasMany
+    {
+        return $this->hasMany(Comment::class, 'author_id');
+    }
+
     public function admin(): HasOne
     {
         return $this->hasOne(Admin::class);

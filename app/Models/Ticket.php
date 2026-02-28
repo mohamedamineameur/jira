@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Organization extends Model
+class Ticket extends Model
 {
     use HasFactory, HasUuids;
 
@@ -30,10 +30,15 @@ class Organization extends Model
      * @var list<string>
      */
     protected $fillable = [
-        'name',
-        'slug',
-        'owner_id',
-        'plan',
+        'project_id',
+        'title',
+        'description',
+        'status',
+        'priority',
+        'type',
+        'assignee_id',
+        'reporter_id',
+        'due_date',
         'is_deleted',
         'deleted_at',
     ];
@@ -44,28 +49,29 @@ class Organization extends Model
     protected function casts(): array
     {
         return [
+            'due_date' => 'datetime',
             'is_deleted' => 'boolean',
             'deleted_at' => 'datetime',
         ];
     }
 
-    public function owner(): BelongsTo
+    public function project(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'owner_id');
+        return $this->belongsTo(Project::class);
     }
 
-    public function members(): HasMany
+    public function assignee(): BelongsTo
     {
-        return $this->hasMany(OrganizationMember::class, 'organization_id');
+        return $this->belongsTo(User::class, 'assignee_id');
     }
 
-    public function invitations(): HasMany
+    public function reporter(): BelongsTo
     {
-        return $this->hasMany(Invitation::class, 'organization_id');
+        return $this->belongsTo(User::class, 'reporter_id');
     }
 
-    public function projects(): HasMany
+    public function comments(): HasMany
     {
-        return $this->hasMany(Project::class, 'organization_id');
+        return $this->hasMany(Comment::class, 'ticket_id');
     }
 }

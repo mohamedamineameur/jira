@@ -81,6 +81,11 @@ class OrganizationPolicy
             ->exists();
     }
 
+    public function manageProjects(User $authUser, Organization $organization): bool
+    {
+        return $this->manageMembers($authUser, $organization);
+    }
+
     private function canManage(User $authUser, Organization $organization): bool
     {
         if ($organization->is_deleted) {

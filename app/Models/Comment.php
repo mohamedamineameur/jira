@@ -6,9 +6,8 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Organization extends Model
+class Comment extends Model
 {
     use HasFactory, HasUuids;
 
@@ -30,10 +29,9 @@ class Organization extends Model
      * @var list<string>
      */
     protected $fillable = [
-        'name',
-        'slug',
-        'owner_id',
-        'plan',
+        'ticket_id',
+        'author_id',
+        'content',
         'is_deleted',
         'deleted_at',
     ];
@@ -49,23 +47,13 @@ class Organization extends Model
         ];
     }
 
-    public function owner(): BelongsTo
+    public function ticket(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'owner_id');
+        return $this->belongsTo(Ticket::class);
     }
 
-    public function members(): HasMany
+    public function author(): BelongsTo
     {
-        return $this->hasMany(OrganizationMember::class, 'organization_id');
-    }
-
-    public function invitations(): HasMany
-    {
-        return $this->hasMany(Invitation::class, 'organization_id');
-    }
-
-    public function projects(): HasMany
-    {
-        return $this->hasMany(Project::class, 'organization_id');
+        return $this->belongsTo(User::class, 'author_id');
     }
 }

@@ -6,11 +6,12 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Organization extends Model
+class Invitation extends Model
 {
     use HasFactory, HasUuids;
+
+    protected $table = 'invitations';
 
     /**
      * The "type" of the primary key ID.
@@ -26,16 +27,30 @@ class Organization extends Model
      */
     public $incrementing = false;
 
+    public $timestamps = true;
+
+    public const UPDATED_AT = null;
+
     /**
      * @var list<string>
      */
     protected $fillable = [
-        'name',
-        'slug',
-        'owner_id',
-        'plan',
+        'organization_id',
+        'email',
+        'role',
+        'token',
+        'expires_at',
+        'accepted',
         'is_deleted',
         'deleted_at',
+        'created_at',
+    ];
+
+    /**
+     * @var list<string>
+     */
+    protected $hidden = [
+        'token',
     ];
 
     /**
@@ -44,28 +59,16 @@ class Organization extends Model
     protected function casts(): array
     {
         return [
+            'expires_at' => 'datetime',
+            'accepted' => 'boolean',
             'is_deleted' => 'boolean',
             'deleted_at' => 'datetime',
+            'created_at' => 'datetime',
         ];
     }
 
-    public function owner(): BelongsTo
+    public function organization(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'owner_id');
-    }
-
-    public function members(): HasMany
-    {
-        return $this->hasMany(OrganizationMember::class, 'organization_id');
-    }
-
-    public function invitations(): HasMany
-    {
-        return $this->hasMany(Invitation::class, 'organization_id');
-    }
-
-    public function projects(): HasMany
-    {
-        return $this->hasMany(Project::class, 'organization_id');
+        return $this->belongsTo(Organization::class);
     }
 }
