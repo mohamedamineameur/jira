@@ -8,6 +8,7 @@ use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\LabelController;
 use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\OrganizationMemberController;
+use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\TicketLabelController;
@@ -17,6 +18,8 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('users', [UserController::class, 'store'])->middleware('audit.log');
 Route::post('login', [AuthController::class, 'login'])->middleware('audit.log');
+Route::post('login/verify-otp', [AuthController::class, 'verifyOtp'])->middleware('audit.log');
+Route::post('password/forgot', [PasswordResetController::class, 'requestLink'])->middleware('audit.log');
 
 Route::middleware(['auth.api', 'audit.log'])->group(function (): void {
     Route::post('logout', [AuthController::class, 'logout']);
@@ -48,7 +51,7 @@ Route::middleware(['auth.api', 'audit.log'])->group(function (): void {
     Route::get('organizations/{organization}/projects/{project}/labels/{label}', [LabelController::class, 'show']);
     Route::patch('organizations/{organization}/projects/{project}/labels/{label}', [LabelController::class, 'update']);
     Route::delete('organizations/{organization}/projects/{project}/labels/{label}', [LabelController::class, 'destroy']);
-    Route::get('organizations/{organization}/projects/{project}/tickets', [TicketController::class, 'index']);
+    Route::get('organizations/{organization}/projouects/{project}/tickets', [TicketController::class, 'index']);
     Route::post('organizations/{organization}/projects/{project}/tickets', [TicketController::class, 'store']);
     Route::get('organizations/{organization}/projects/{project}/tickets/{ticket}', [TicketController::class, 'show']);
     Route::patch('organizations/{organization}/projects/{project}/tickets/{ticket}', [TicketController::class, 'update']);

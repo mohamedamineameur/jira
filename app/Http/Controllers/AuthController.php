@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\LoginRequest;
+use App\Http\Requests\VerifyLoginOtpRequest;
 use App\Models\User;
 use App\Models\UserSession;
+use App\Services\EmailService;
 use App\Services\SessionTokenService;
 use App\Services\UserSessionService;
 use Illuminate\Http\JsonResponse;
@@ -17,6 +19,7 @@ class AuthController extends Controller
     public function __construct(
         private readonly UserSessionService $userSessionService,
         private readonly SessionTokenService $sessionTokenService,
+        private readonly EmailService $emailService,
     ) {}
 
     public function login(LoginRequest $request): JsonResponse
@@ -38,6 +41,71 @@ class AuthController extends Controller
             ], 403);
         }
 
+        $otpCode = (string) random_int(100000, 999999);
+        $otpExpiresAt = now()->addMinutes(10);
+
+        $user->otp_hash = Hash::make($otpCode);
+        $user->otp_expires_at = $otpExpiresAt;
+        $user->save();
+
+        $this->emailService->sendThemed(
+            $user->email,
+            'Your Agilify login code',
+            [
+                'heroTitle' => 'Your login OTP code',
+                'heroText' => 'Use this 6-digit code to complete your login.',
+                'otpCode' => $otpCode,
+                'otpCopyText' => 'Copy code',
+                'otpCopyHint' => 'On mobile, press and hold the code to copy it.',
+                'cards' => [
+                    [
+                        'title' => 'Expiration',
+                        'text' => 'This code expires in 10 minutes.',
+                    ],
+                    [
+                        'title' => 'Security',
+                        'text' => 'Never share this code with anyone.',
+                    ],
+                ],
+                'footerText' => 'Agilify - Login Security',
+            ]
+        );
+
+        return response()->json([
+            'message' => 'OTP sent successfully.',
+            'data' => [
+                'email' => $user->email,
+                'otp_expires_at' => $otpExpiresAt->toIso8601String(),
+            ],
+        ]);
+    }
+
+    public function verifyOtp(VerifyLoginOtpRequest $request): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = User::query()
+            ->where('email', $request->validated()['email'])
+            ->first();
+
+        if (! $user) {
+            return response()->json([
+                'message' => 'Invalid OTP or email.',
+            ], 401);
+        }
+
+        $otp = $request->validated()['otp'];
+
+        if (
+            ! is_string($user->otp_hash)
+            || ! Hash::check($otp, $user->otp_hash)
+            || $user->otp_expires_at === null
+            || now()->greaterThan($user->otp_expires_at)
+        ) {
+            return response()->json([
+                'message' => 'Invalid OTP or email.',
+            ], 401);
+        }
+
         $sessionSecret = bin2hex(random_bytes(32));
         $session = $this->userSessionService->create([
             'user_id' => $user->id,
@@ -45,6 +113,10 @@ class AuthController extends Controller
             'ip' => $request->ip(),
             'agent' => $request->userAgent(),
         ]);
+
+        $user->otp_hash = null;
+        $user->otp_expires_at = null;
+        $user->save();
 
         $cookieToken = $this->sessionTokenService->createToken($session->id, $sessionSecret);
 

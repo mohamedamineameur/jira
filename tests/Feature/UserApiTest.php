@@ -30,6 +30,11 @@ class UserApiTest extends TestCase
             'is_active' => true,
             'is_deleted' => false,
         ]);
+
+        $createdUser = User::query()->where('email', 'amine@example.com')->first();
+        $this->assertNotNull($createdUser);
+        $this->assertNotNull($createdUser?->token_hash);
+        $this->assertNotNull($createdUser?->email_verification_expires_at);
     }
 
     public function test_user_creation_validates_payload(): void

@@ -15,6 +15,7 @@ class UserService
         private readonly CreateUserAction $createUserAction,
         private readonly UpdateUserAction $updateUserAction,
         private readonly DeleteUserAction $deleteUserAction,
+        private readonly EmailVerificationService $emailVerificationService,
     ) {}
 
     public function paginate(int $perPage = 15): LengthAwarePaginator
@@ -26,7 +27,10 @@ class UserService
 
     public function create(array $data): User
     {
-        return $this->createUserAction->execute($data);
+        $user = $this->createUserAction->execute($data);
+        $this->emailVerificationService->sendVerificationEmail($user);
+
+        return $user;
     }
 
     public function updateProfile(User $user, array $data): User

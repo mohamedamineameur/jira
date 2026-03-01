@@ -39,9 +39,11 @@ class User extends Authenticatable
         'email',
         'password_hash',
         'otp_hash',
+        'otp_expires_at',
         'token_hash',
         'is_active',
         'email_verified',
+        'email_verification_expires_at',
         'is_deleted',
         'deleted_at',
     ];
@@ -54,7 +56,9 @@ class User extends Authenticatable
     protected $hidden = [
         'password_hash',
         'otp_hash',
+        'otp_expires_at',
         'token_hash',
+        'email_verification_expires_at',
     ];
 
     /**
@@ -66,8 +70,10 @@ class User extends Authenticatable
     {
         return [
             'password_hash' => 'hashed',
+            'otp_expires_at' => 'datetime',
             'is_active' => 'boolean',
             'email_verified' => 'boolean',
+            'email_verification_expires_at' => 'datetime',
             'is_deleted' => 'boolean',
             'deleted_at' => 'datetime',
         ];

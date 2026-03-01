@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\UserSession;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class AuthApiTest extends TestCase
@@ -46,8 +47,10 @@ class AuthApiTest extends TestCase
             ->assertJsonPath('message', 'Account is disabled.');
     }
 
-    public function test_user_can_login_and_receive_session_cookie(): void
+    public function test_login_sends_otp_without_creating_session_cookie(): void
     {
+        Mail::fake();
+
         $user = User::factory()->create([
             'email' => 'login@example.com',
             'password_hash' => 'Password123!',
@@ -61,12 +64,58 @@ class AuthApiTest extends TestCase
         ]);
 
         $response->assertOk()
+            ->assertJsonPath('message', 'OTP sent successfully.')
+            ->assertJsonPath('data.email', 'login@example.com')
+            ->assertCookieMissing('session_token');
+
+        $user->refresh();
+        $this->assertNotNull($user->otp_hash);
+        $this->assertNotNull($user->otp_expires_at);
+    }
+
+    public function test_user_can_verify_otp_and_receive_session_cookie(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'otp@example.com',
+            'password_hash' => 'Password123!',
+            'otp_hash' => Hash::make('123456'),
+            'otp_expires_at' => now()->addMinutes(10),
+            'is_active' => true,
+            'is_deleted' => false,
+        ]);
+
+        $response = $this->postJson('/api/login/verify-otp', [
+            'email' => 'otp@example.com',
+            'otp' => '123456',
+        ]);
+
+        $response->assertOk()
             ->assertJsonPath('data.user.id', $user->id)
             ->assertCookie('session_token');
 
         $this->assertDatabaseHas('user_sessions', [
             'user_id' => $user->id,
         ]);
+    }
+
+    public function test_verify_otp_fails_with_invalid_or_expired_code(): void
+    {
+        User::factory()->create([
+            'email' => 'otp-expired@example.com',
+            'password_hash' => 'Password123!',
+            'otp_hash' => Hash::make('123456'),
+            'otp_expires_at' => now()->subMinute(),
+            'is_active' => true,
+            'is_deleted' => false,
+        ]);
+
+        $response = $this->postJson('/api/login/verify-otp', [
+            'email' => 'otp-expired@example.com',
+            'otp' => '123456',
+        ]);
+
+        $response->assertUnauthorized()
+            ->assertJsonPath('message', 'Invalid OTP or email.');
     }
 
     public function test_me_requires_valid_session_cookie(): void
