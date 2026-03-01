@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ForgotPasswordRequest;
+use App\Http\Requests\ResetPasswordApiRequest;
 use App\Http\Requests\ResetPasswordRequest;
 use App\Models\User;
 use App\Services\PasswordResetService;
@@ -20,6 +21,27 @@ class PasswordResetController extends Controller
 
         return response()->json([
             'message' => 'If this email exists, a password reset link has been sent.',
+        ]);
+    }
+
+    public function resetApi(ResetPasswordApiRequest $request): JsonResponse
+    {
+        $validated = $request->validated();
+
+        $isReset = $this->passwordResetService->resetPasswordByEmail(
+            $validated['email'],
+            $validated['token'],
+            $validated['password']
+        );
+
+        if (! $isReset) {
+            return response()->json([
+                'message' => 'Invalid or expired password reset token.',
+            ], 422);
+        }
+
+        return response()->json([
+            'message' => 'Password has been reset successfully.',
         ]);
     }
 

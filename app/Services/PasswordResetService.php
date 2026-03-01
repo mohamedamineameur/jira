@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\User;
 use Illuminate\Support\Facades\Password;
-use Illuminate\Support\Facades\URL;
 
 class PasswordResetService
 {
@@ -23,14 +22,8 @@ class PasswordResetService
 
         $token = Password::broker()->createToken($user);
         $expiresInMinutes = (int) config('auth.passwords.users.expire', 60);
-        $resetUrl = URL::temporarySignedRoute(
-            'password.reset.form',
-            now()->addMinutes($expiresInMinutes),
-            [
-                'user' => $user->id,
-                'token' => $token,
-            ]
-        );
+        $appUrl = rtrim((string) config('app.url', 'http://127.0.0.1:8000'), '/');
+        $resetUrl = $appUrl.'/#/reset-password?email='.urlencode($user->email).'&token='.urlencode($token);
 
         $this->emailService->sendThemed(
             $user->email,
@@ -72,5 +65,22 @@ class PasswordResetService
         Password::broker()->deleteToken($user);
 
         return true;
+    }
+
+    public function resetPasswordByEmail(string $email, string $token, string $newPassword): bool
+    {
+        $status = Password::broker()->reset(
+            [
+                'email' => $email,
+                'token' => $token,
+                'password' => $newPassword,
+            ],
+            static function (User $user, string $password): void {
+                $user->password_hash = $password;
+                $user->save();
+            }
+        );
+
+        return $status === Password::PASSWORD_RESET;
     }
 }

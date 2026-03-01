@@ -20,6 +20,7 @@ Route::post('users', [UserController::class, 'store'])->middleware('audit.log');
 Route::post('login', [AuthController::class, 'login'])->middleware('audit.log');
 Route::post('login/verify-otp', [AuthController::class, 'verifyOtp'])->middleware('audit.log');
 Route::post('password/forgot', [PasswordResetController::class, 'requestLink'])->middleware('audit.log');
+Route::post('password/reset', [PasswordResetController::class, 'resetApi'])->middleware('audit.log');
 
 Route::middleware(['auth.api', 'audit.log'])->group(function (): void {
     Route::post('logout', [AuthController::class, 'logout']);

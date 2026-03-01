@@ -13,6 +13,7 @@ const routes = {
     '#/verify-otp': renderVerifyOtp,
     '#/register': renderRegister,
     '#/forgot-password': renderForgotPassword,
+    '#/reset-password': renderResetPassword,
     '#/dashboard': renderDashboard,
 };
 
@@ -99,6 +100,16 @@ function withShell(content, { heroTitle, heroText } = {}) {
         <footer class="modern-footer">Agilify SPA - Phase 1</footer>
       </div>
     `;
+}
+
+function getHashParams() {
+    const hash = window.location.hash || '';
+    const queryIndex = hash.indexOf('?');
+    if (queryIndex === -1) {
+        return new URLSearchParams();
+    }
+
+    return new URLSearchParams(hash.slice(queryIndex + 1));
 }
 
 function renderHome() {
@@ -236,6 +247,45 @@ function renderForgotPassword() {
     });
 }
 
+function renderResetPassword() {
+    const params = getHashParams();
+    const email = params.get('email') || '';
+    const token = params.get('token') || '';
+
+    const content = `
+      <section class="cards">
+        <article class="card">
+          <h3>Set New Password</h3>
+          <form id="reset-password-form">
+            <div class="field">
+              <label for="reset-email">Email</label>
+              <input class="input" id="reset-email" type="email" name="email" value="${email}" required>
+            </div>
+            <div class="field">
+              <label for="reset-token">Reset token</label>
+              <input class="input" id="reset-token" type="text" name="token" value="${token}" required>
+            </div>
+            <div class="field">
+              <label for="reset-password">New password</label>
+              <input class="input" id="reset-password" type="password" name="password" required>
+            </div>
+            <div class="field">
+              <label for="reset-password-confirmation">Confirm password</label>
+              <input class="input" id="reset-password-confirmation" type="password" name="password_confirmation" required>
+            </div>
+            <button class="btn" type="submit">Update password</button>
+          </form>
+          <p class="muted">Paste token manually if your email client removed URL parameters.</p>
+        </article>
+      </section>
+    `;
+
+    return withShell(content, {
+        heroTitle: 'Password Reset',
+        heroText: 'Set a new password with your token.',
+    });
+}
+
 function renderDashboard() {
     if (!state.user) {
         return withShell(
@@ -347,6 +397,23 @@ async function handleForgotSubmit(event) {
     }
 }
 
+async function handleResetPasswordSubmit(event) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const payload = Object.fromEntries(formData.entries());
+
+    try {
+        await api('/api/password/reset', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        });
+        setFlash('success', 'Password updated successfully. You can now login.');
+        navigate('#/login');
+    } catch (error) {
+        setFlash('error', error.message);
+    }
+}
+
 async function handleLogout(event) {
     if (event) {
         event.preventDefault();
@@ -382,6 +449,11 @@ function bindPageEvents() {
     const forgotForm = document.querySelector('#forgot-form');
     if (forgotForm) {
         forgotForm.addEventListener('submit', handleForgotSubmit);
+    }
+
+    const resetPasswordForm = document.querySelector('#reset-password-form');
+    if (resetPasswordForm) {
+        resetPasswordForm.addEventListener('submit', handleResetPasswordSubmit);
     }
 
     const logoutButton = document.querySelector('#logout-button');
