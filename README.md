@@ -71,11 +71,13 @@ Important notes:
 - `composer format`: Laravel Pint auto-format.
 - `composer prettier:check`: Prettier check (Markdown/YAML/JSON).
 - `composer prettier:write`: Prettier auto-format.
+- `npm run lint:front`: ESLint for SPA frontend code.
 
 ## Tests
 
 ```bash
 composer test
+npm run test:front
 ```
 
 ## Continuous Integration
@@ -86,6 +88,8 @@ On every `push` and `pull_request`, it runs:
 
 - lint with Laravel Pint;
 - Prettier check;
+- frontend lint with ESLint;
+- frontend unit tests with Vitest;
 - Laravel tests.
 
 ## CLI Utilities

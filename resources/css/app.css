@@ -8,6 +8,7 @@ body {
     background: linear-gradient(135deg, #1f1c2c, #928dab);
     color: white;
     min-height: 100vh;
+    line-height: 1.5;
 }
 
 a {
@@ -18,6 +19,23 @@ a {
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+}
+
+.skip-link {
+    position: absolute;
+    left: 12px;
+    top: -40px;
+    z-index: 50;
+    background: #00f5ff;
+    color: #111;
+    padding: 8px 12px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.skip-link:focus {
+    top: 12px;
 }
 
 .modern-nav {
@@ -39,11 +57,13 @@ a {
 
 .modern-nav ul {
     display: flex;
+    flex-wrap: wrap;
     list-style: none;
-    gap: 30px;
+    gap: 12px 20px;
     padding: 0;
     margin: 0;
     align-items: center;
+    justify-content: flex-end;
 }
 
 .modern-nav a {
@@ -55,6 +75,15 @@ a {
 .modern-nav a:hover,
 .modern-nav a.active {
     color: #00f5ff;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+    outline: 3px solid rgba(0, 245, 255, 0.6);
+    outline-offset: 2px;
 }
 
 .hero {
@@ -130,6 +159,12 @@ a {
     border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
 .field {
     display: flex;
     flex-direction: column;
@@ -193,16 +228,61 @@ a {
 }
 
 @media (max-width: 768px) {
+    .modern-nav {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 12px 16px;
+    }
+
     .hero h1,
     .hero h2 {
         font-size: 2.2rem;
     }
 
-    .modern-nav ul {
-        display: none;
-    }
-
     .layout {
         padding: 0 16px 32px;
+    }
+
+    .cards {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+
+    .card {
+        padding: 20px 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .hero {
+        padding: 36px 16px 12px;
+    }
+
+    .hero h1,
+    .hero h2 {
+        font-size: 1.7rem;
+    }
+
+    .btn {
+        width: 100%;
+        min-height: 44px;
+    }
+
+    .field {
+        margin-bottom: 12px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    * {
+        transition: none !important;
+        animation: none !important;
+        scroll-behavior: auto !important;
+    }
+
+    .card:hover,
+    .btn:hover {
+        transform: none;
     }
 }

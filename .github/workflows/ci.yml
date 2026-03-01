@@ -23,6 +23,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+
+      - name: Install Node dependencies
+        run: npm ci
 
       - name: Install Composer dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
@@ -40,6 +44,12 @@ jobs:
 
       - name: Format check (Prettier)
         run: composer prettier:check
+
+      - name: Lint frontend (ESLint)
+        run: npm run lint:front
+
+      - name: Frontend unit tests (Vitest)
+        run: npm run test:front
 
       - name: Run tests
         run: composer test

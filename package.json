@@ -4,14 +4,22 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "vite"
+        "dev": "vite",
+        "lint:front": "eslint resources/js --max-warnings=0",
+        "test:front": "LARAVEL_BYPASS_ENV_CHECK=1 vitest run",
+        "test:front:watch": "LARAVEL_BYPASS_ENV_CHECK=1 vitest"
     },
     "devDependencies": {
+        "@eslint/js": "^10.0.1",
         "@tailwindcss/vite": "^4.0.0",
         "axios": "^1.11.0",
         "concurrently": "^9.0.1",
+        "eslint": "^10.0.2",
+        "globals": "^17.4.0",
+        "jsdom": "^28.1.0",
         "laravel-vite-plugin": "^2.0.0",
         "tailwindcss": "^4.0.0",
-        "vite": "^7.0.7"
+        "vite": "^7.0.7",
+        "vitest": "^4.0.18"
     }
 }

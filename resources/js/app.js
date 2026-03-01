@@ -1,4 +1,5 @@
 import './bootstrap';
+import { applyListView as buildListView } from './lib/list-utils';
 
 const state = {
     user: null,
@@ -33,6 +34,23 @@ const state = {
     commentsLoading: false,
     ticketLabels: [],
     ticketLabelsLoading: false,
+    sessions: [],
+    sessionsLoaded: false,
+    sessionsLoading: false,
+    selectedSession: null,
+    auditLogs: [],
+    auditLogsLoaded: false,
+    auditLogsLoading: false,
+    selectedAuditLog: null,
+    ui: {
+        users: { search: '', page: 1, perPage: 8 },
+        admins: { search: '', page: 1, perPage: 6 },
+        organizations: { search: '', page: 1, perPage: 6 },
+        projects: { search: '', page: 1, perPage: 6 },
+        tickets: { search: '', page: 1, perPage: 6 },
+        sessions: { search: '', page: 1, perPage: 6 },
+        auditLogs: { search: '', page: 1, perPage: 6 },
+    },
 };
 
 const routes = {
@@ -47,12 +65,14 @@ const routes = {
     '#/admins': renderAdmins,
     '#/organizations': renderOrganizations,
     '#/projects': renderProjects,
+    '#/sessions': renderSessions,
+    '#/audit-logs': renderAuditLogs,
 };
 
 const app = document.querySelector('#app');
-# Node
-node_modules/
-.npm-cache/
+const requestCache = new Map();
+const CACHE_TTL_MS = 20000;
+
 function navigate(hash) {
     if (window.location.hash !== hash) {
         window.location.hash = hash;
@@ -60,9 +80,7 @@ function navigate(hash) {
         render();
     }
 }
-# Node
-node_modules/
-.npm-cache/
+
 function currentHashPath() {
     const hash = window.location.hash || '#/';
     const queryIndex = hash.indexOf('?');
@@ -85,13 +103,81 @@ function setFlash(type, message) {
     render();
 }
 
+function invalidateCache(prefixes = ['/api']) {
+    for (const key of requestCache.keys()) {
+        if (prefixes.some((prefix) => key.startsWith(prefix))) {
+            requestCache.delete(key);
+        }
+    }
+}
+
+function getListState(listKey) {
+    return state.ui[listKey] ?? { search: '', page: 1, perPage: 6 };
+}
+
+function setListSearch(listKey, search) {
+    if (!state.ui[listKey]) {
+        return;
+    }
+
+    state.ui[listKey].search = String(search || '');
+    state.ui[listKey].page = 1;
+    render();
+}
+
+function setListPerPage(listKey, perPageRaw) {
+    if (!state.ui[listKey]) {
+        return;
+    }
+
+    const perPage = Number.parseInt(String(perPageRaw), 10);
+    state.ui[listKey].perPage = Number.isFinite(perPage) && perPage > 0 ? perPage : state.ui[listKey].perPage;
+    state.ui[listKey].page = 1;
+    render();
+}
+
+function updateListPage(listKey, direction) {
+    if (!state.ui[listKey]) {
+        return;
+    }
+
+    state.ui[listKey].page = Math.max(1, state.ui[listKey].page + direction);
+    render();
+}
+
+function applyListView(items, listKey, fields) {
+    const list = Array.isArray(items) ? items : [];
+    const listState = getListState(listKey);
+    const view = buildListView(list, listState, fields);
+    const page = view.page;
+    if (page !== listState.page) {
+        state.ui[listKey].page = page;
+    }
+    return view;
+}
+
+async function apiGet(path, { force = false, ttlMs = CACHE_TTL_MS } = {}) {
+    const cached = requestCache.get(path);
+    if (!force && cached && Date.now() - cached.timestamp < ttlMs) {
+        return cached.body;
+    }
+
+    const body = await api(path, { method: 'GET' });
+    requestCache.set(path, { body, timestamp: Date.now() });
+    return body;
+}
+
 function resetUserAdminCollections() {
     state.users = [];
     state.usersLoaded = false;
     state.usersLoading = false;
-    state.selectedUser = null;# Node
-    node_modules/
-    .npm-cache/
+    state.selectedUser = null;
+    state.admins = [];
+    state.adminsLoaded = false;
+    state.adminsLoading = false;
+    state.organizations = [];
+    state.organizationsLoaded = false;
+    state.organizationsLoading = false;
     state.selectedOrganization = null;
     state.organizationMembers = [];
     state.membersLoading = false;
@@ -110,6 +196,21 @@ function resetUserAdminCollections() {
     state.commentsLoading = false;
     state.ticketLabels = [];
     state.ticketLabelsLoading = false;
+    state.sessions = [];
+    state.sessionsLoaded = false;
+    state.sessionsLoading = false;
+    state.selectedSession = null;
+    state.auditLogs = [];
+    state.auditLogsLoaded = false;
+    state.auditLogsLoading = false;
+    state.selectedAuditLog = null;
+    state.ui.users.page = 1;
+    state.ui.admins.page = 1;
+    state.ui.organizations.page = 1;
+    state.ui.projects.page = 1;
+    state.ui.tickets.page = 1;
+    state.ui.sessions.page = 1;
+    state.ui.auditLogs.page = 1;
 }
 
 async function api(path, options = {}) {
@@ -122,7 +223,7 @@ async function api(path, options = {}) {
         ...options,
     });
 
-    let body = null;
+    let body;
 
     try {
         body = await response.json();
@@ -137,6 +238,11 @@ async function api(path, options = {}) {
             `Request failed with status ${response.status}.`;
 
         throw new Error(message);
+    }
+
+    const method = String(options.method || 'GET').toUpperCase();
+    if (method !== 'GET') {
+        invalidateCache();
     }
 
     return body;
@@ -162,7 +268,7 @@ async function fetchUsers(force = false) {
     render();
 
     try {
-        const res = await api('/api/users?per_page=50', { method: 'GET' });
+        const res = await apiGet('/api/users?per_page=50', { force });
         state.users = Array.isArray(res?.data) ? res.data : [];
         state.usersLoaded = true;
 
@@ -183,7 +289,7 @@ async function fetchUserById(id) {
     }
 
     try {
-        const res = await api(`/api/users/${id}`, { method: 'GET' });
+        const res = await apiGet(`/api/users/${id}`);
         state.selectedUser = res.data ?? null;
         render();
     } catch (error) {
@@ -200,7 +306,7 @@ async function fetchAdmins(force = false) {
     render();
 
     try {
-        const res = await api('/api/admins?per_page=50', { method: 'GET' });
+        const res = await apiGet('/api/admins?per_page=50', { force });
         state.admins = Array.isArray(res?.data) ? res.data : [];
         state.adminsLoaded = true;
     } catch (error) {
@@ -220,7 +326,7 @@ async function fetchOrganizations(force = false) {
     render();
 
     try {
-        const res = await api('/api/organizations?per_page=50', { method: 'GET' });
+        const res = await apiGet('/api/organizations?per_page=50', { force });
         state.organizations = Array.isArray(res?.data) ? res.data : [];
         state.organizationsLoaded = true;
 
@@ -236,7 +342,7 @@ async function fetchOrganizations(force = false) {
     }
 }
 
-async function loadOrganizationDetails(organizationId) {
+async function loadOrganizationDetails(organizationId, force = false) {
     if (!organizationId) {
         return;
     }
@@ -247,9 +353,9 @@ async function loadOrganizationDetails(organizationId) {
 
     try {
         const [orgRes, membersRes, invitationsRes] = await Promise.all([
-            api(`/api/organizations/${organizationId}`, { method: 'GET' }),
-            api(`/api/organizations/${organizationId}/members?per_page=50`, { method: 'GET' }),
-            api(`/api/organizations/${organizationId}/invitations?per_page=50`, { method: 'GET' }),
+            apiGet(`/api/organizations/${organizationId}`, { force }),
+            apiGet(`/api/organizations/${organizationId}/members?per_page=50`, { force }),
+            apiGet(`/api/organizations/${organizationId}/invitations?per_page=50`, { force }),
         ]);
 
         state.selectedOrganization = orgRes.data ?? null;
@@ -290,7 +396,7 @@ async function fetchProjects(force = false) {
     render();
 
     try {
-        const projectsRes = await api(`/api/organizations/${organizationId}/projects?per_page=50`, { method: 'GET' });
+        const projectsRes = await apiGet(`/api/organizations/${organizationId}/projects?per_page=50`, { force });
         state.projects = Array.isArray(projectsRes?.data) ? projectsRes.data : [];
         state.projectsLoaded = true;
 
@@ -314,7 +420,7 @@ async function fetchProjects(force = false) {
     }
 }
 
-async function loadProjectWorkspace(projectId) {
+async function loadProjectWorkspace(projectId, force = false) {
     const organizationId = state.selectedOrganization?.id;
     if (!organizationId || !projectId) {
         return;
@@ -326,9 +432,9 @@ async function loadProjectWorkspace(projectId) {
 
     try {
         const [projectRes, labelsRes, ticketsRes] = await Promise.all([
-            api(`/api/organizations/${organizationId}/projects/${projectId}`, { method: 'GET' }),
-            api(`/api/organizations/${organizationId}/projects/${projectId}/labels?per_page=50`, { method: 'GET' }),
-            api(`/api/organizations/${organizationId}/projouects/${projectId}/tickets?per_page=50`, { method: 'GET' }),
+            apiGet(`/api/organizations/${organizationId}/projects/${projectId}`, { force }),
+            apiGet(`/api/organizations/${organizationId}/projects/${projectId}/labels?per_page=50`, { force }),
+            apiGet(`/api/organizations/${organizationId}/projouects/${projectId}/tickets?per_page=50`, { force }),
         ]);
 
         state.selectedProject = projectRes.data ?? null;
@@ -352,7 +458,7 @@ async function loadProjectWorkspace(projectId) {
     }
 }
 
-async function loadTicketWorkspace(ticketId) {
+async function loadTicketWorkspace(ticketId, force = false) {
     const organizationId = state.selectedOrganization?.id;
     const projectId = state.selectedProject?.id;
     if (!organizationId || !projectId || !ticketId) {
@@ -365,9 +471,9 @@ async function loadTicketWorkspace(ticketId) {
 
     try {
         const [ticketRes, commentsRes, ticketLabelsRes] = await Promise.all([
-            api(`/api/organizations/${organizationId}/projects/${projectId}/tickets/${ticketId}`, { method: 'GET' }),
-            api(`/api/organizations/${organizationId}/projects/${projectId}/tickets/${ticketId}/comments?per_page=50`, { method: 'GET' }),
-            api(`/api/organizations/${organizationId}/projects/${projectId}/tickets/${ticketId}/labels?per_page=50`, { method: 'GET' }),
+            apiGet(`/api/organizations/${organizationId}/projects/${projectId}/tickets/${ticketId}`, { force }),
+            apiGet(`/api/organizations/${organizationId}/projects/${projectId}/tickets/${ticketId}/comments?per_page=50`, { force }),
+            apiGet(`/api/organizations/${organizationId}/projects/${projectId}/tickets/${ticketId}/labels?per_page=50`, { force }),
         ]);
 
         state.selectedTicket = ticketRes.data ?? null;
@@ -382,6 +488,80 @@ async function loadTicketWorkspace(ticketId) {
     }
 }
 
+async function fetchSessions(force = false) {
+    if (!state.user || (state.sessionsLoaded && !force) || state.sessionsLoading) {
+        return;
+    }
+
+    state.sessionsLoading = true;
+    render();
+
+    try {
+        const res = await apiGet('/api/sessions?per_page=50', { force });
+        state.sessions = Array.isArray(res?.data) ? res.data : [];
+        state.sessionsLoaded = true;
+
+        const existing = state.sessions.find((session) => session.id === state.selectedSession?.id) ?? null;
+        state.selectedSession = existing ?? state.sessions[0] ?? null;
+    } catch (error) {
+        setFlash('error', error.message);
+    } finally {
+        state.sessionsLoading = false;
+        render();
+    }
+}
+
+async function fetchSessionById(sessionId) {
+    if (!sessionId) {
+        return;
+    }
+
+    try {
+        const res = await apiGet(`/api/sessions/${sessionId}`);
+        state.selectedSession = res.data ?? null;
+        render();
+    } catch (error) {
+        setFlash('error', error.message);
+    }
+}
+
+async function fetchAuditLogs(force = false) {
+    if (!state.user || !state.isAdmin || (state.auditLogsLoaded && !force) || state.auditLogsLoading) {
+        return;
+    }
+
+    state.auditLogsLoading = true;
+    render();
+
+    try {
+        const res = await apiGet('/api/audit-logs?per_page=50', { force });
+        state.auditLogs = Array.isArray(res?.data) ? res.data : [];
+        state.auditLogsLoaded = true;
+
+        const existing = state.auditLogs.find((log) => log.id === state.selectedAuditLog?.id) ?? null;
+        state.selectedAuditLog = existing ?? state.auditLogs[0] ?? null;
+    } catch (error) {
+        setFlash('error', error.message);
+    } finally {
+        state.auditLogsLoading = false;
+        render();
+    }
+}
+
+async function fetchAuditLogById(auditLogId) {
+    if (!auditLogId || !state.isAdmin) {
+        return;
+    }
+
+    try {
+        const res = await apiGet(`/api/audit-logs/${auditLogId}`);
+        state.selectedAuditLog = res.data ?? null;
+        render();
+    } catch (error) {
+        setFlash('error', error.message);
+    }
+}
+
 function withShell(content, { heroTitle, heroText } = {}) {
     const path = currentHashPath();
 
@@ -391,6 +571,8 @@ function withShell(content, { heroTitle, heroText } = {}) {
             <li><a href="#/users" class="${path === '#/users' ? 'active' : ''}">Users</a></li>
             <li><a href="#/organizations" class="${path === '#/organizations' ? 'active' : ''}">Organizations</a></li>
             <li><a href="#/projects" class="${path === '#/projects' ? 'active' : ''}">Projects</a></li>
+            <li><a href="#/sessions" class="${path === '#/sessions' ? 'active' : ''}">Sessions</a></li>
+            ${state.isAdmin ? `<li><a href="#/audit-logs" class="${path === '#/audit-logs' ? 'active' : ''}">Audit Logs</a></li>` : ''}
             ${state.isAdmin ? `<li><a href="#/admins" class="${path === '#/admins' ? 'active' : ''}">Admins</a></li>` : ''}
             <li><a href="#/login" id="logout-link">Logout</a></li>
           `
@@ -402,7 +584,8 @@ function withShell(content, { heroTitle, heroText } = {}) {
 
     return `
       <div class="app-root">
-        <nav class="modern-nav">
+        <a class="skip-link" href="#main-content">Skip to content</a>
+        <nav class="modern-nav" aria-label="Primary navigation">
           <div class="brand">Agilify</div>
           <ul>${navItems}</ul>
         </nav>
@@ -410,11 +593,11 @@ function withShell(content, { heroTitle, heroText } = {}) {
           <h2>${heroTitle}</h2>
           <p>${heroText}</p>
         </section>
-        <main class="layout">
-          ${state.flash ? `<div class="alert ${state.flash.type}">${state.flash.message}</div>` : ''}
+        <main class="layout" id="main-content" tabindex="-1">
+          ${state.flash ? `<div class="alert ${state.flash.type}" role="status" aria-live="polite">${state.flash.message}</div>` : ''}
           ${content}
         </main>
-        <footer class="modern-footer">Agilify SPA - Phase 2 in progress</footer>
+        <footer class="modern-footer">Agilify SPA - Phase 3 in progress</footer>
       </div>
     `;
 }
@@ -628,6 +811,8 @@ function renderDashboard() {
           <a class="btn" href="#/users">Manage Users</a>
           <a class="btn secondary" href="#/organizations">Manage Organizations</a>
           <a class="btn secondary" href="#/projects">Manage Projects</a>
+          <a class="btn secondary" href="#/sessions">Manage Sessions</a>
+          ${state.isAdmin ? '<a class="btn secondary" href="#/audit-logs">View Audit Logs</a>' : ''}
           ${state.isAdmin ? '<a class="btn secondary" href="#/admins">Manage Admins</a>' : ''}
           <a class="btn secondary" href="#/forgot-password">Forgot Password</a>
           <button class="btn secondary" id="logout-button" type="button">Logout</button>
@@ -649,7 +834,8 @@ function renderUsers() {
         });
     }
 
-    const userRows = state.users
+    const usersView = applyListView(state.users, 'users', ['name', 'email', 'id']);
+    const userRows = usersView.items
         .map(
             (user) => `
         <div class="card" style="padding:16px;">
@@ -730,10 +916,27 @@ function renderUsers() {
       <section class="cards">
         <article class="card">
           <h3>Users List</h3>
+          <div class="field">
+            <label>Search users</label>
+            <input class="input" data-list-search="users" value="${usersView.search}" placeholder="Search by name, email or id">
+          </div>
+          <div class="field">
+            <label>Items per page</label>
+            <select class="input" data-list-per-page="users">
+              <option value="5" ${usersView.perPage === 5 ? 'selected' : ''}>5</option>
+              <option value="8" ${usersView.perPage === 8 ? 'selected' : ''}>8</option>
+              <option value="12" ${usersView.perPage === 12 ? 'selected' : ''}>12</option>
+            </select>
+          </div>
           <button class="btn secondary" id="users-refresh-btn" type="button">Refresh users</button>
           ${state.usersLoading ? '<p class="muted">Loading users...</p>' : ''}
           <div class="cards" style="padding: 16px 0 0;">
             ${userRows || '<p class="muted">No users loaded yet.</p>'}
+          </div>
+          <p class="muted">Page ${usersView.page} / ${usersView.totalPages} - ${usersView.total} result(s)</p>
+          <div style="display:flex; gap:8px;">
+            <button class="btn secondary" type="button" data-list-page-prev="users" ${usersView.page <= 1 ? 'disabled' : ''}>Previous</button>
+            <button class="btn secondary" type="button" data-list-page-next="users" ${usersView.page >= usersView.totalPages ? 'disabled' : ''}>Next</button>
           </div>
         </article>
         ${selectedUserCard}
@@ -771,7 +974,8 @@ function renderAdmins() {
         );
     }
 
-    const adminRows = state.admins
+    const adminsView = applyListView(state.admins, 'admins', ['id', 'user.name', 'user.email']);
+    const adminRows = adminsView.items
         .map((admin) => {
             const adminName = admin.user?.name ?? 'Unknown user';
             const adminEmail = admin.user?.email ?? '';
@@ -814,8 +1018,25 @@ function renderAdmins() {
             </div>
             <button class="btn" type="submit">Create admin</button>
           </form>
+          <div class="field">
+            <label>Search admins</label>
+            <input class="input" data-list-search="admins" value="${adminsView.search}" placeholder="Search by id, name, email">
+          </div>
+          <div class="field">
+            <label>Items per page</label>
+            <select class="input" data-list-per-page="admins">
+              <option value="4" ${adminsView.perPage === 4 ? 'selected' : ''}>4</option>
+              <option value="6" ${adminsView.perPage === 6 ? 'selected' : ''}>6</option>
+              <option value="10" ${adminsView.perPage === 10 ? 'selected' : ''}>10</option>
+            </select>
+          </div>
           <button class="btn secondary" id="admins-refresh-btn" type="button" style="margin-top:12px;">Refresh admins</button>
           ${state.adminsLoading ? '<p class="muted">Loading admins...</p>' : ''}
+          <p class="muted">Page ${adminsView.page} / ${adminsView.totalPages} - ${adminsView.total} result(s)</p>
+          <div style="display:flex; gap:8px;">
+            <button class="btn secondary" type="button" data-list-page-prev="admins" ${adminsView.page <= 1 ? 'disabled' : ''}>Previous</button>
+            <button class="btn secondary" type="button" data-list-page-next="admins" ${adminsView.page >= adminsView.totalPages ? 'disabled' : ''}>Next</button>
+          </div>
         </article>
         ${adminRows || '<article class="card"><h3>No admins</h3><p>Add one using user ID.</p></article>'}
       </section>
@@ -835,7 +1056,8 @@ function renderOrganizations() {
         });
     }
 
-    const organizationRows = state.organizations
+    const organizationsView = applyListView(state.organizations, 'organizations', ['name', 'slug', 'id', 'plan']);
+    const organizationRows = organizationsView.items
         .map(
             (organization) => `
           <div class="card" style="padding:16px;">
@@ -1020,10 +1242,27 @@ function renderOrganizations() {
       <section class="cards">
         <article class="card">
           <h3>Organizations List</h3>
+          <div class="field">
+            <label>Search organizations</label>
+            <input class="input" data-list-search="organizations" value="${organizationsView.search}" placeholder="Search by name, slug, plan">
+          </div>
+          <div class="field">
+            <label>Items per page</label>
+            <select class="input" data-list-per-page="organizations">
+              <option value="4" ${organizationsView.perPage === 4 ? 'selected' : ''}>4</option>
+              <option value="6" ${organizationsView.perPage === 6 ? 'selected' : ''}>6</option>
+              <option value="10" ${organizationsView.perPage === 10 ? 'selected' : ''}>10</option>
+            </select>
+          </div>
           <button class="btn secondary" id="organizations-refresh-btn" type="button">Refresh organizations</button>
           ${state.organizationsLoading ? '<p class="muted">Loading organizations...</p>' : ''}
           <div class="cards" style="padding: 16px 0 0;">
             ${organizationRows || '<p class="muted">No organizations yet.</p>'}
+          </div>
+          <p class="muted">Page ${organizationsView.page} / ${organizationsView.totalPages} - ${organizationsView.total} result(s)</p>
+          <div style="display:flex; gap:8px;">
+            <button class="btn secondary" type="button" data-list-page-prev="organizations" ${organizationsView.page <= 1 ? 'disabled' : ''}>Previous</button>
+            <button class="btn secondary" type="button" data-list-page-next="organizations" ${organizationsView.page >= organizationsView.totalPages ? 'disabled' : ''}>Next</button>
           </div>
         </article>
         ${organizationPanel}
@@ -1054,7 +1293,8 @@ function renderProjects() {
         )
         .join('');
 
-    const projectRows = state.projects
+    const projectsView = applyListView(state.projects, 'projects', ['name', 'key', 'description', 'id']);
+    const projectRows = projectsView.items
         .map(
             (project) => `
             <div class="card" style="padding:14px;">
@@ -1086,7 +1326,8 @@ function renderProjects() {
         )
         .join('');
 
-    const ticketsMarkup = state.projectTickets
+    const ticketsView = applyListView(state.projectTickets, 'tickets', ['title', 'status', 'priority', 'type', 'id']);
+    const ticketsMarkup = ticketsView.items
         .map(
             (item) => `
             <div class="card" style="padding:14px;">
@@ -1148,7 +1389,24 @@ function renderProjects() {
             <div class="field"><label>Key</label><input class="input" name="key" required></div>
             <button class="btn" type="submit">Create project</button>
           </form>
+          <div class="field">
+            <label>Search projects</label>
+            <input class="input" data-list-search="projects" value="${projectsView.search}" placeholder="Search by name, key, description">
+          </div>
+          <div class="field">
+            <label>Items per page</label>
+            <select class="input" data-list-per-page="projects">
+              <option value="4" ${projectsView.perPage === 4 ? 'selected' : ''}>4</option>
+              <option value="6" ${projectsView.perPage === 6 ? 'selected' : ''}>6</option>
+              <option value="10" ${projectsView.perPage === 10 ? 'selected' : ''}>10</option>
+            </select>
+          </div>
           <div class="cards" style="padding:16px 0 0;">${projectRows || '<p class="muted">No projects.</p>'}</div>
+          <p class="muted">Page ${projectsView.page} / ${projectsView.totalPages} - ${projectsView.total} result(s)</p>
+          <div style="display:flex; gap:8px;">
+            <button class="btn secondary" type="button" data-list-page-prev="projects" ${projectsView.page <= 1 ? 'disabled' : ''}>Previous</button>
+            <button class="btn secondary" type="button" data-list-page-next="projects" ${projectsView.page >= projectsView.totalPages ? 'disabled' : ''}>Next</button>
+          </div>
         </article>
 
         ${
@@ -1212,8 +1470,25 @@ function renderProjects() {
               <div class="field"><label>Due date (optional)</label><input class="input" type="date" name="due_date"></div>
               <button class="btn" type="submit">Create ticket</button>
             </form>
+            <div class="field">
+              <label>Search tickets</label>
+              <input class="input" data-list-search="tickets" value="${ticketsView.search}" placeholder="Search by title, status, priority, type">
+            </div>
+            <div class="field">
+              <label>Items per page</label>
+              <select class="input" data-list-per-page="tickets">
+                <option value="4" ${ticketsView.perPage === 4 ? 'selected' : ''}>4</option>
+                <option value="6" ${ticketsView.perPage === 6 ? 'selected' : ''}>6</option>
+                <option value="10" ${ticketsView.perPage === 10 ? 'selected' : ''}>10</option>
+              </select>
+            </div>
             ${state.ticketsLoading ? '<p class="muted">Loading tickets...</p>' : ''}
             <div class="cards" style="padding:16px 0 0;">${ticketsMarkup || '<p class="muted">No tickets.</p>'}</div>
+            <p class="muted">Page ${ticketsView.page} / ${ticketsView.totalPages} - ${ticketsView.total} result(s)</p>
+            <div style="display:flex; gap:8px;">
+              <button class="btn secondary" type="button" data-list-page-prev="tickets" ${ticketsView.page <= 1 ? 'disabled' : ''}>Previous</button>
+              <button class="btn secondary" type="button" data-list-page-next="tickets" ${ticketsView.page >= ticketsView.totalPages ? 'disabled' : ''}>Next</button>
+            </div>
           </article>
         `
                 : `
@@ -1302,6 +1577,199 @@ function renderProjects() {
     return withShell(content, {
         heroTitle: 'Projects Workspace',
         heroText: 'Manage projects, labels, tickets, comments and ticket labels.',
+    });
+}
+
+function renderSessions() {
+    if (!state.user) {
+        return withShell(renderProtectedMessage(), {
+            heroTitle: 'Sessions',
+            heroText: 'Login required.',
+        });
+    }
+
+    const sessionsView = applyListView(state.sessions, 'sessions', ['id', 'user.email', 'user_id', 'ip', 'agent']);
+    const sessionRows = sessionsView.items
+        .map(
+            (session) => `
+            <div class="card" style="padding:14px;">
+              <p><strong>${session.user?.email ?? session.user_id}</strong></p>
+              <p class="muted">${session.ip ?? '-'} | ${session.agent ?? '-'}</p>
+              <p class="muted">Revoked: ${session.deleted_at ? 'Yes' : 'No'}</p>
+              <button class="btn secondary session-open-btn" data-session-id="${session.id}" type="button">Open</button>
+            </div>
+        `,
+        )
+        .join('');
+
+    const selected = state.selectedSession;
+
+    const content = `
+      <section class="cards">
+        <article class="card">
+          <h3>Sessions List</h3>
+          <div class="field">
+            <label>Search sessions</label>
+            <input class="input" data-list-search="sessions" value="${sessionsView.search}" placeholder="Search by user, ip, agent">
+          </div>
+          <div class="field">
+            <label>Items per page</label>
+            <select class="input" data-list-per-page="sessions">
+              <option value="4" ${sessionsView.perPage === 4 ? 'selected' : ''}>4</option>
+              <option value="6" ${sessionsView.perPage === 6 ? 'selected' : ''}>6</option>
+              <option value="10" ${sessionsView.perPage === 10 ? 'selected' : ''}>10</option>
+            </select>
+          </div>
+          <button class="btn secondary" id="sessions-refresh-btn" type="button">Refresh sessions</button>
+          ${state.sessionsLoading ? '<p class="muted">Loading sessions...</p>' : ''}
+          <div class="cards" style="padding:16px 0 0;">
+            ${sessionRows || '<p class="muted">No sessions found.</p>'}
+          </div>
+          <p class="muted">Page ${sessionsView.page} / ${sessionsView.totalPages} - ${sessionsView.total} result(s)</p>
+          <div style="display:flex; gap:8px;">
+            <button class="btn secondary" type="button" data-list-page-prev="sessions" ${sessionsView.page <= 1 ? 'disabled' : ''}>Previous</button>
+            <button class="btn secondary" type="button" data-list-page-next="sessions" ${sessionsView.page >= sessionsView.totalPages ? 'disabled' : ''}>Next</button>
+          </div>
+        </article>
+
+        <article class="card">
+          <h3>Create Session (Manual)</h3>
+          <form id="session-create-form">
+            <div class="field"><label>User ID</label><input class="input" name="user_id" required></div>
+            <div class="field"><label>Token</label><input class="input" name="token" minlength="16" required></div>
+            <div class="field"><label>IP (optional)</label><input class="input" name="ip"></div>
+            <div class="field"><label>Agent (optional)</label><input class="input" name="agent"></div>
+            <button class="btn" type="submit">Create session</button>
+          </form>
+        </article>
+
+        ${
+            selected
+                ? `
+          <article class="card">
+            <h3>Session Details</h3>
+            <p><strong>ID:</strong> ${selected.id}</p>
+            <p><strong>User:</strong> ${selected.user?.email ?? selected.user_id}</p>
+            <p><strong>IP:</strong> ${selected.ip ?? '-'}</p>
+            <p><strong>Agent:</strong> ${selected.agent ?? '-'}</p>
+            <p><strong>Last used at:</strong> ${selected.last_used_at ?? '-'}</p>
+            <p><strong>Created at:</strong> ${selected.created_at ?? '-'}</p>
+            <p><strong>Revoked:</strong> ${selected.deleted_at ? 'Yes' : 'No'}</p>
+            <button class="btn secondary" id="session-revoke-button" data-session-id="${selected.id}" type="button" ${selected.deleted_at ? 'disabled' : ''}>Revoke session</button>
+          </article>
+        `
+                : `
+          <article class="card">
+            <h3>Select a session</h3>
+            <p>Open one session from the list to inspect details.</p>
+          </article>
+        `
+        }
+      </section>
+    `;
+
+    return withShell(content, {
+        heroTitle: 'Sessions Management',
+        heroText: 'Inspect active/revoked sessions and revoke sessions when needed.',
+    });
+}
+
+function renderAuditLogs() {
+    if (!state.user || !state.isAdmin) {
+        return withShell(renderProtectedMessage(), {
+            heroTitle: 'Audit Logs',
+            heroText: 'Admin access required.',
+        });
+    }
+
+    const auditView = applyListView(state.auditLogs, 'auditLogs', [
+        'id',
+        'action',
+        'entity_type',
+        'entity_id',
+        'performer.email',
+        'performed_by',
+    ]);
+    const auditRows = auditView.items
+        .map(
+            (log) => `
+            <div class="card" style="padding:14px;">
+              <p><strong>${log.action}</strong></p>
+              <p class="muted">${log.entity_type} / ${log.entity_id}</p>
+              <p class="muted">By: ${log.performer?.email ?? log.performed_by ?? 'system'}</p>
+              <button class="btn secondary audit-open-btn" data-audit-log-id="${log.id}" type="button">Open</button>
+            </div>
+        `,
+        )
+        .join('');
+
+    const selected = state.selectedAuditLog;
+    const selectedBefore = selected?.before ? JSON.stringify(selected.before, null, 2) : '{}';
+    const selectedAfter = selected?.after ? JSON.stringify(selected.after, null, 2) : '{}';
+
+    const content = `
+      <section class="cards">
+        <article class="card">
+          <h3>Audit Logs</h3>
+          <div class="field">
+            <label>Search audit logs</label>
+            <input class="input" data-list-search="auditLogs" value="${auditView.search}" placeholder="Search by action, entity, performer">
+          </div>
+          <div class="field">
+            <label>Items per page</label>
+            <select class="input" data-list-per-page="auditLogs">
+              <option value="4" ${auditView.perPage === 4 ? 'selected' : ''}>4</option>
+              <option value="6" ${auditView.perPage === 6 ? 'selected' : ''}>6</option>
+              <option value="10" ${auditView.perPage === 10 ? 'selected' : ''}>10</option>
+            </select>
+          </div>
+          <button class="btn secondary" id="audit-logs-refresh-btn" type="button">Refresh logs</button>
+          ${state.auditLogsLoading ? '<p class="muted">Loading audit logs...</p>' : ''}
+          <div class="cards" style="padding:16px 0 0;">
+            ${auditRows || '<p class="muted">No audit logs found.</p>'}
+          </div>
+          <p class="muted">Page ${auditView.page} / ${auditView.totalPages} - ${auditView.total} result(s)</p>
+          <div style="display:flex; gap:8px;">
+            <button class="btn secondary" type="button" data-list-page-prev="auditLogs" ${auditView.page <= 1 ? 'disabled' : ''}>Previous</button>
+            <button class="btn secondary" type="button" data-list-page-next="auditLogs" ${auditView.page >= auditView.totalPages ? 'disabled' : ''}>Next</button>
+          </div>
+        </article>
+
+        ${
+            selected
+                ? `
+          <article class="card">
+            <h3>Audit Log Details</h3>
+            <p><strong>ID:</strong> ${selected.id}</p>
+            <p><strong>Action:</strong> ${selected.action}</p>
+            <p><strong>Entity:</strong> ${selected.entity_type} (${selected.entity_id})</p>
+            <p><strong>Performer:</strong> ${selected.performer?.email ?? selected.performed_by ?? 'system'}</p>
+            <p><strong>IP Address:</strong> ${selected.ip_address ?? '-'}</p>
+            <p><strong>Created at:</strong> ${selected.created_at ?? '-'}</p>
+            <p><strong>Deleted:</strong> ${selected.is_deleted ? 'Yes' : 'No'}</p>
+          </article>
+          <article class="card">
+            <h3>Before</h3>
+            <pre style="white-space:pre-wrap; overflow:auto;">${selectedBefore}</pre>
+          </article>
+          <article class="card">
+            <h3>After</h3>
+            <pre style="white-space:pre-wrap; overflow:auto;">${selectedAfter}</pre>
+          </article>
+        `
+                : `
+          <article class="card">
+            <h3>Select a log entry</h3>
+            <p>Open one audit log to inspect full payload changes.</p>
+          </article>
+        `
+        }
+      </section>
+    `;
+
+    return withShell(content, {
+        heroTitle: 'Audit Logs',
+        heroText: 'Track security-sensitive and data mutation events.',
     });
 }
 
@@ -1457,12 +1925,22 @@ async function handleUserDeleteClick(event) {
         return;
     }
 
+    const previousUsers = [...state.users];
+    const previousSelectedUser = state.selectedUser;
+    state.users = state.users.filter((user) => user.id !== userId);
+    if (state.selectedUser?.id === userId) {
+        state.selectedUser = null;
+    }
+    render();
+
     try {
         await api(`/api/users/${userId}`, { method: 'DELETE' });
         state.selectedUser = null;
         await fetchUsers(true);
         setFlash('success', 'User deleted successfully.');
     } catch (error) {
+        state.users = previousUsers;
+        state.selectedUser = previousSelectedUser;
         setFlash('error', error.message);
     }
 }
@@ -1592,6 +2070,14 @@ async function handleOrganizationDeleteClick(event) {
         return;
     }
 
+    const previousOrganizations = [...state.organizations];
+    const previousSelectedOrganization = state.selectedOrganization;
+    state.organizations = state.organizations.filter((organization) => organization.id !== organizationId);
+    if (state.selectedOrganization?.id === organizationId) {
+        state.selectedOrganization = null;
+    }
+    render();
+
     try {
         await api(`/api/organizations/${organizationId}`, {
             method: 'DELETE',
@@ -1600,6 +2086,8 @@ async function handleOrganizationDeleteClick(event) {
         await fetchOrganizations(true);
         setFlash('success', 'Organization deleted successfully.');
     } catch (error) {
+        state.organizations = previousOrganizations;
+        state.selectedOrganization = previousSelectedOrganization;
         setFlash('error', error.message);
     }
 }
@@ -1795,6 +2283,14 @@ async function handleProjectDeleteClick(event) {
         return;
     }
 
+    const previousProjects = [...state.projects];
+    const previousSelectedProject = state.selectedProject;
+    state.projects = state.projects.filter((project) => project.id !== projectId);
+    if (state.selectedProject?.id === projectId) {
+        state.selectedProject = null;
+    }
+    render();
+
     try {
         await api(`/api/organizations/${organizationId}/projects/${projectId}`, { method: 'DELETE' });
         state.selectedProject = null;
@@ -1802,6 +2298,8 @@ async function handleProjectDeleteClick(event) {
         await fetchProjects(true);
         setFlash('success', 'Project deleted successfully.');
     } catch (error) {
+        state.projects = previousProjects;
+        state.selectedProject = previousSelectedProject;
         setFlash('error', error.message);
     }
 }
@@ -1955,6 +2453,14 @@ async function handleTicketDeleteClick(event) {
         return;
     }
 
+    const previousTickets = [...state.projectTickets];
+    const previousSelectedTicket = state.selectedTicket;
+    state.projectTickets = state.projectTickets.filter((item) => item.id !== ticketId);
+    if (state.selectedTicket?.id === ticketId) {
+        state.selectedTicket = null;
+    }
+    render();
+
     try {
         await api(`/api/organizations/${organizationId}/projects/${projectId}/tickets/${ticketId}`, {
             method: 'DELETE',
@@ -1965,6 +2471,8 @@ async function handleTicketDeleteClick(event) {
         await loadProjectWorkspace(projectId);
         setFlash('success', 'Ticket deleted successfully.');
     } catch (error) {
+        state.projectTickets = previousTickets;
+        state.selectedTicket = previousSelectedTicket;
         setFlash('error', error.message);
     }
 }
@@ -2091,6 +2599,86 @@ async function handleTicketLabelDeleteClick(event) {
     }
 }
 
+async function handleSessionCreateSubmit(event) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const payload = Object.fromEntries(formData.entries());
+    if (!payload.ip) {
+        delete payload.ip;
+    }
+    if (!payload.agent) {
+        delete payload.agent;
+    }
+
+    try {
+        await api('/api/sessions', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        });
+        await fetchSessions(true);
+        setFlash('success', 'Session created successfully.');
+        event.currentTarget.reset();
+    } catch (error) {
+        setFlash('error', error.message);
+    }
+}
+
+async function handleSessionRevokeClick(event) {
+    event.preventDefault();
+    const sessionId = event.currentTarget.dataset.sessionId;
+    if (!sessionId) {
+        return;
+    }
+
+    if (!window.confirm('Revoke this session?')) {
+        return;
+    }
+
+    const previousSessions = [...state.sessions];
+    const previousSelectedSession = state.selectedSession ? { ...state.selectedSession } : null;
+    state.sessions = state.sessions.map((session) =>
+        session.id === sessionId ? { ...session, deleted_at: session.deleted_at ?? new Date().toISOString() } : session,
+    );
+    if (state.selectedSession?.id === sessionId) {
+        state.selectedSession = {
+            ...state.selectedSession,
+            deleted_at: state.selectedSession.deleted_at ?? new Date().toISOString(),
+        };
+    }
+    render();
+
+    try {
+        await api(`/api/sessions/${sessionId}`, { method: 'DELETE' });
+        await fetchSessions(true);
+        await fetchSessionById(sessionId);
+        setFlash('success', 'Session revoked successfully.');
+    } catch (error) {
+        state.sessions = previousSessions;
+        state.selectedSession = previousSelectedSession;
+        setFlash('error', error.message);
+    }
+}
+
+function handleListSearchInput(event) {
+    const listKey = event.currentTarget.dataset.listSearch;
+    setListSearch(listKey, event.currentTarget.value);
+}
+
+function handleListPerPageChange(event) {
+    const listKey = event.currentTarget.dataset.listPerPage;
+    setListPerPage(listKey, event.currentTarget.value);
+}
+
+function handleListPrevPageClick(event) {
+    const listKey = event.currentTarget.dataset.listPagePrev;
+    updateListPage(listKey, -1);
+}
+
+function handleListNextPageClick(event) {
+    const listKey = event.currentTarget.dataset.listPageNext;
+    updateListPage(listKey, 1);
+}
+
 async function handleLogout(event) {
     if (event) {
         event.preventDefault();
@@ -2104,6 +2692,7 @@ async function handleLogout(event) {
 
     state.user = null;
     state.isAdmin = false;
+    invalidateCache();
     resetUserAdminCollections();
     setFlash('success', 'You are logged out.');
     navigate('#/login');
@@ -2341,6 +2930,58 @@ function bindPageEvents() {
         button.addEventListener('click', handleTicketLabelDeleteClick);
     });
 
+    const sessionCreateForm = document.querySelector('#session-create-form');
+    if (sessionCreateForm) {
+        sessionCreateForm.addEventListener('submit', handleSessionCreateSubmit);
+    }
+
+    const sessionsRefreshButton = document.querySelector('#sessions-refresh-btn');
+    if (sessionsRefreshButton) {
+        sessionsRefreshButton.addEventListener('click', () => {
+            fetchSessions(true);
+        });
+    }
+
+    document.querySelectorAll('.session-open-btn').forEach((button) => {
+        button.addEventListener('click', (event) => {
+            fetchSessionById(event.currentTarget.dataset.sessionId);
+        });
+    });
+
+    const sessionRevokeButton = document.querySelector('#session-revoke-button');
+    if (sessionRevokeButton) {
+        sessionRevokeButton.addEventListener('click', handleSessionRevokeClick);
+    }
+
+    const auditLogsRefreshButton = document.querySelector('#audit-logs-refresh-btn');
+    if (auditLogsRefreshButton) {
+        auditLogsRefreshButton.addEventListener('click', () => {
+            fetchAuditLogs(true);
+        });
+    }
+
+    document.querySelectorAll('.audit-open-btn').forEach((button) => {
+        button.addEventListener('click', (event) => {
+            fetchAuditLogById(event.currentTarget.dataset.auditLogId);
+        });
+    });
+
+    document.querySelectorAll('[data-list-search]').forEach((input) => {
+        input.addEventListener('input', handleListSearchInput);
+    });
+
+    document.querySelectorAll('[data-list-per-page]').forEach((select) => {
+        select.addEventListener('change', handleListPerPageChange);
+    });
+
+    document.querySelectorAll('[data-list-page-prev]').forEach((button) => {
+        button.addEventListener('click', handleListPrevPageClick);
+    });
+
+    document.querySelectorAll('[data-list-page-next]').forEach((button) => {
+        button.addEventListener('click', handleListNextPageClick);
+    });
+
     const logoutButton = document.querySelector('#logout-button');
     if (logoutButton) {
         logoutButton.addEventListener('click', handleLogout);
@@ -2372,6 +3013,14 @@ function render() {
 
     if (path === '#/projects') {
         fetchProjects();
+    }
+
+    if (path === '#/sessions') {
+        fetchSessions();
+    }
+
+    if (path === '#/audit-logs') {
+        fetchAuditLogs();
     }
 }
 
