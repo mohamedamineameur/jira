@@ -23,7 +23,8 @@ php "$APP_DIR/artisan" storage:link --force 2>/dev/null || true
 # ── 4. Cache config/routes/views for production ───────────────────────────
 php "$APP_DIR/artisan" config:cache
 php "$APP_DIR/artisan" route:cache
-php "$APP_DIR/artisan" view:cache
+php "$APP_DIR/artisan" view:clear
+php "$APP_DIR/artisan" view:cache || echo "⚠  view:cache skipped (views will compile on first request)"
 php "$APP_DIR/artisan" event:cache
 
 # ── 5. Run migrations ─────────────────────────────────────────────────────

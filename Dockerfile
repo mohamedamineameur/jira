@@ -101,6 +101,6 @@ RUN chown -R www-data:www-data /var/lib/nginx /var/log/nginx /run \
     && touch /var/log/nginx/access.log /var/log/nginx/error.log \
     && chown www-data:www-data /var/log/nginx/access.log /var/log/nginx/error.log
 
-EXPOSE 80
+EXPOSE 80 8000
 
 ENTRYPOINT ["/entrypoint.sh"]
