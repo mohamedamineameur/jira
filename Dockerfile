@@ -31,8 +31,10 @@ RUN composer install \
         --no-scripts
 
 COPY . .
-RUN composer dump-autoload --optimize --no-dev
+RUN mkdir -p bootstrap/cache storage/framework/{sessions,views,cache} storage/logs \
+    && composer dump-autoload --optimize --no-dev --no-scripts
 
+#------------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage 3 – Final: PHP 8.3-FPM + Nginx served by Supervisor
 # ─────────────────────────────────────────────────────────────────────────────
