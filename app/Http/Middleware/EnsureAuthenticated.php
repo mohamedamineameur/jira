@@ -31,6 +31,7 @@ class EnsureAuthenticated
             }
 
             Auth::setUser($resolvedUser);
+
             return $next($request);
         }
 
