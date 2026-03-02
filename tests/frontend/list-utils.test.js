@@ -10,19 +10,44 @@ describe('list-utils', () => {
         expect(getFieldValue(null, 'profile.email')).toBeUndefined();
     });
 
-    it('filters by search and supports nested fields', () => {
+    it('filters by search and respects listed fields', () => {
         const items = [
-            { id: '1', action: 'created', performer: { email: 'amine@example.com' } },
-            { id: '2', action: 'deleted', performer: { email: 'john@example.com' } },
+            { id: '1', action: 'Created', performer: { email: 'amine@example.com' } },
+            { id: '2', action: 'Deleted', performer: { email: 'john@example.com' } },
+            { id: '3', action: 'updated', performer: { email: 'richard@example.com' } },
         ];
-        const view = applyListView(items, { search: 'john', page: 1, perPage: 10 }, ['action', 'performer.email']);
 
-        expect(view.total).toBe(1);
-        expect(view.items).toHaveLength(1);
-        expect(view.items[0].id).toBe('2');
+        const view = applyListView(
+            items,
+            { search: 'ATED', page: 1, perPage: 10 },
+            ['action', 'performer.email'],
+        );
+
+        expect(view.total).toBe(2);
+        expect(view.items.map((item) => item.id)).toEqual(['1', '3']);
+        expect(view.search).toBe('ATED');
     });
 
-    it('paginates and clamps page bounds', () => {
+    it('ignores search when term is empty and defaults perPage', () => {
+        const items = Array.from({ length: 7 }, (_, index) => ({ id: String(index + 1), name: `item-${index + 1}` }));
+        const view = applyListView(items, { search: '', page: 1, perPage: 0 }, ['name']);
+
+        expect(view.perPage).toBe(6);
+        expect(view.totalPages).toBe(2);
+        expect(view.items).toHaveLength(6);
+        expect(view.items[0].name).toBe('item-1');
+    });
+
+    it('falls back to an empty list when items is not an array', () => {
+        const view = applyListView({ foo: 'bar' }, { search: '', page: 1, perPage: 5 }, ['foo']);
+
+        expect(view.total).toBe(0);
+        expect(view.items).toHaveLength(0);
+        expect(view.page).toBe(1);
+        expect(view.totalPages).toBe(1);
+    });
+
+    it('clamps the requested page between 1 and totalPages', () => {
         const items = Array.from({ length: 11 }, (_, index) => ({ id: String(index + 1), name: `item-${index + 1}` }));
         const view = applyListView(items, { search: '', page: 99, perPage: 5 }, ['name']);
 

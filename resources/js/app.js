@@ -2173,40 +2173,49 @@ function renderAuditLogs() {
     });
 }
 
-async function handleLoginSubmit(event) {
+async function handleLoginSubmit(event, { apiFn = api, flashFn = setFlash, navigateFn = navigate } = {}) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const payload = Object.fromEntries(formData.entries());
 
     try {
-        await api('/api/login', {
+        await apiFn('/api/login', {
             method: 'POST',
             body: JSON.stringify(payload),
         });
         state.pendingOtpEmail = String(payload.email || '');
-        setFlash('success', 'OTP sent successfully. Check your email.');
-        navigate('#/verify-otp');
+        flashFn('success', 'OTP sent successfully. Check your email.');
+        navigateFn('#/verify-otp');
     } catch (error) {
-        setFlash('error', error.message);
+        flashFn('error', error.message);
     }
 }
 
-async function handleVerifyOtpSubmit(event) {
+async function handleVerifyOtpSubmit(
+    event,
+    {
+        apiFn = api,
+        flashFn = setFlash,
+        navigateFn = navigate,
+        loadMeFn = loadMe,
+        resetCollectionsFn = resetUserAdminCollections,
+    } = {},
+) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const payload = Object.fromEntries(formData.entries());
 
     try {
-        await api('/api/login/verify-otp', {
+        await apiFn('/api/login/verify-otp', {
             method: 'POST',
             body: JSON.stringify(payload),
         });
-        await loadMe();
-        resetUserAdminCollections();
-        setFlash('success', 'Logged in successfully.');
-        navigate('#/dashboard');
+        await loadMeFn();
+        resetCollectionsFn();
+        flashFn('success', 'Logged in successfully.');
+        navigateFn('#/dashboard');
     } catch (error) {
-        setFlash('error', error.message);
+        flashFn('error', error.message);
     }
 }
 
@@ -3512,6 +3521,18 @@ function render() {
         fetchAuditLogs();
     }
 }
+
+export {
+    state,
+    renderLogin,
+    renderVerifyOtp,
+    handleLoginSubmit,
+    handleVerifyOtpSubmit,
+    setFlash,
+    navigate,
+    loadMe,
+    resetUserAdminCollections,
+};
 
 window.addEventListener('hashchange', render);
 
