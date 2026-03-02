@@ -9,7 +9,7 @@ Laravel backend with a structured architecture based on `Models`, `Policies`, `S
 - PHP `^8.2`
 - Composer
 - Node.js `>=20` (for Prettier)
-- SQLite
+- MySQL `8+` (or MariaDB)
 
 ### Setup
 
@@ -17,7 +17,29 @@ Laravel backend with a structured architecture based on `Models`, `Policies`, `S
 composer install
 cp .env.example .env
 php artisan key:generate
-touch database/database.sqlite
+```
+
+Configure your database in `.env` (example):
+
+```env
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3307
+DB_DATABASE=agilify
+DB_USERNAME=agilify
+DB_PASSWORD=agilify_password
+```
+
+Then run:
+
+```bash
+php artisan migrate
+```
+
+### MySQL via Docker (optional)
+
+```bash
+docker compose up -d
 php artisan migrate
 ```
 

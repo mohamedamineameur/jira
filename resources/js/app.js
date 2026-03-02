@@ -5,6 +5,7 @@ const state = {
     user: null,
     isAdmin: false,
     flash: null,
+    flashTimeoutId: null,
     pendingOtpEmail: '',
     users: [],
     usersLoaded: false,
@@ -25,12 +26,15 @@ const state = {
     projects: [],
     projectsLoaded: false,
     projectsLoading: false,
+    projectsError: null,
     selectedProject: null,
+    loadedProjectWorkspaceId: null,
     projectLabels: [],
     labelsLoading: false,
     projectTickets: [],
     ticketsLoading: false,
     selectedTicket: null,
+    loadedTicketWorkspaceId: null,
     ticketComments: [],
     commentsLoading: false,
     ticketLabels: [],
@@ -66,6 +70,8 @@ const routes = {
     '#/admins': renderAdmins,
     '#/organizations': renderOrganizations,
     '#/projects': renderProjects,
+    '#/project': renderProjectDetails,
+    '#/ticket': renderTicketDetails,
     '#/sessions': renderSessions,
     '#/audit-logs': renderAuditLogs,
 };
@@ -100,8 +106,54 @@ function getHashParams() {
 }
 
 function setFlash(type, message) {
-    state.flash = { type, message };
+    const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    state.flash = { id, type, message };
+
+    if (state.flashTimeoutId) {
+        clearTimeout(state.flashTimeoutId);
+        state.flashTimeoutId = null;
+    }
+
+    state.flashTimeoutId = window.setTimeout(() => {
+        if (state.flash?.id === id) {
+            state.flash = null;
+            state.flashTimeoutId = null;
+            render();
+        }
+    }, 10000);
+
     render();
+}
+
+function clearFlash() {
+    if (state.flashTimeoutId) {
+        clearTimeout(state.flashTimeoutId);
+        state.flashTimeoutId = null;
+    }
+
+    if (state.flash) {
+        state.flash = null;
+        render();
+    }
+}
+
+function formatDateTime(value) {
+    if (!value) {
+        return '-';
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return String(value);
+    }
+
+    return new Intl.DateTimeFormat('en-CA', {
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+    }).format(date);
 }
 
 function invalidateCache(prefixes = ['/api']) {
@@ -189,11 +241,13 @@ function resetUserAdminCollections() {
     state.projectsLoaded = false;
     state.projectsLoading = false;
     state.selectedProject = null;
+    state.loadedProjectWorkspaceId = null;
     state.projectLabels = [];
     state.labelsLoading = false;
     state.projectTickets = [];
     state.ticketsLoading = false;
     state.selectedTicket = null;
+    state.loadedTicketWorkspaceId = null;
     state.ticketComments = [];
     state.commentsLoading = false;
     state.ticketLabels = [];
@@ -383,8 +437,48 @@ async function loadOrganizationDetails(organizationId, force = false) {
     }
 }
 
+async function fetchOrganizationMembers(organizationId, force = false) {
+    if (!organizationId) {
+        return;
+    }
+
+    if (state.membersLoading) {
+        return;
+    }
+
+    if (state.selectedOrganization?.id === organizationId && state.organizationMembers.length > 0 && !force) {
+        return;
+    }
+
+    state.membersLoading = true;
+    render();
+
+    try {
+        const membersRes = await apiGet(`/api/organizations/${organizationId}/members?per_page=200`, { force });
+        state.organizationMembers = Array.isArray(membersRes?.data) ? membersRes.data : [];
+    } catch {
+        // Keep projects usable even if members list fails.
+        state.organizationMembers = [];
+    } finally {
+        state.membersLoading = false;
+        render();
+    }
+}
+
 async function fetchProjects(force = false) {
+    if (force) {
+        state.projectsError = null;
+    }
+
+    if (state.projectsError && !force) {
+        return;
+    }
+
     if (!state.user) {
+        return;
+    }
+
+    if ((state.projectsLoaded && !force) || state.projectsLoading) {
         return;
     }
 
@@ -401,9 +495,7 @@ async function fetchProjects(force = false) {
         return;
     }
 
-    if (state.projectsLoaded && !force) {
-        return;
-    }
+    await fetchOrganizationMembers(organizationId, force);
 
     state.projectsLoading = true;
     render();
@@ -412,20 +504,12 @@ async function fetchProjects(force = false) {
         const projectsRes = await apiGet(`/api/organizations/${organizationId}/projects?per_page=50`, { force });
         state.projects = Array.isArray(projectsRes?.data) ? projectsRes.data : [];
         state.projectsLoaded = true;
+        state.projectsError = null;
 
         const existingSelected = state.projects.find((project) => project.id === state.selectedProject?.id) ?? null;
         state.selectedProject = existingSelected ?? state.projects[0] ?? null;
-
-        if (state.selectedProject) {
-            await loadProjectWorkspace(state.selectedProject.id);
-        } else {
-            state.projectLabels = [];
-            state.projectTickets = [];
-            state.selectedTicket = null;
-            state.ticketComments = [];
-            state.ticketLabels = [];
-        }
     } catch (error) {
+        state.projectsError = error.message;
         setFlash('error', error.message);
     } finally {
         state.projectsLoading = false;
@@ -436,6 +520,10 @@ async function fetchProjects(force = false) {
 async function loadProjectWorkspace(projectId, force = false) {
     const organizationId = state.selectedOrganization?.id;
     if (!organizationId || !projectId) {
+        return;
+    }
+
+    if (state.loadedProjectWorkspaceId === projectId && (state.labelsLoading || state.ticketsLoading) && !force) {
         return;
     }
 
@@ -451,6 +539,7 @@ async function loadProjectWorkspace(projectId, force = false) {
         ]);
 
         state.selectedProject = projectRes.data ?? null;
+        state.loadedProjectWorkspaceId = projectId;
         state.projectLabels = Array.isArray(labelsRes?.data) ? labelsRes.data : [];
         state.projectTickets = Array.isArray(ticketsRes?.data) ? ticketsRes.data : [];
 
@@ -478,6 +567,14 @@ async function loadTicketWorkspace(ticketId, force = false) {
         return;
     }
 
+    if (
+        state.loadedTicketWorkspaceId === ticketId &&
+        (state.commentsLoading || state.ticketLabelsLoading) &&
+        !force
+    ) {
+        return;
+    }
+
     state.commentsLoading = true;
     state.ticketLabelsLoading = true;
     render();
@@ -490,6 +587,7 @@ async function loadTicketWorkspace(ticketId, force = false) {
         ]);
 
         state.selectedTicket = ticketRes.data ?? null;
+        state.loadedTicketWorkspaceId = ticketId;
         state.ticketComments = Array.isArray(commentsRes?.data) ? commentsRes.data : [];
         state.ticketLabels = Array.isArray(ticketLabelsRes?.data) ? ticketLabelsRes.data : [];
     } catch (error) {
@@ -577,11 +675,12 @@ async function fetchAuditLogById(auditLogId) {
 
 function withShell(content, { heroTitle, heroText } = {}) {
     const path = currentHashPath();
+    const year = new Date().getFullYear();
 
     const navItems = state.user
         ? `
             <li><a href="#/dashboard" class="${path === '#/dashboard' ? 'active' : ''}">Dashboard</a></li>
-            <li><a href="#/users" class="${path === '#/users' ? 'active' : ''}">Users</a></li>
+            ${state.isAdmin ? `<li><a href="#/users" class="${path === '#/users' ? 'active' : ''}">Users</a></li>` : ''}
             <li><a href="#/organizations" class="${path === '#/organizations' ? 'active' : ''}">Organizations</a></li>
             <li><a href="#/projects" class="${path === '#/projects' ? 'active' : ''}">Projects</a></li>
             <li><a href="#/sessions" class="${path === '#/sessions' ? 'active' : ''}">Sessions</a></li>
@@ -592,14 +691,13 @@ function withShell(content, { heroTitle, heroText } = {}) {
         : `
             <li><a href="#/login" class="${path === '#/login' ? 'active' : ''}">Login</a></li>
             <li><a href="#/register" class="${path === '#/register' ? 'active' : ''}">Register</a></li>
-            <li><a href="#/forgot-password" class="${path === '#/forgot-password' ? 'active' : ''}">Forgot Password</a></li>
           `;
 
     return `
       <div class="app-root">
         <a class="skip-link" href="#main-content">Skip to content</a>
         <nav class="modern-nav" aria-label="Primary navigation">
-          <div class="brand">Agilify</div>
+          <a class="brand" href="/">Agilify</a>
           <ul>${navItems}</ul>
         </nav>
         <section class="hero">
@@ -607,10 +705,17 @@ function withShell(content, { heroTitle, heroText } = {}) {
           <p>${heroText}</p>
         </section>
         <main class="layout" id="main-content" tabindex="-1">
-          ${state.flash ? `<div class="alert ${state.flash.type}" role="status" aria-live="polite">${state.flash.message}</div>` : ''}
+          ${
+              state.flash
+                  ? `<div class="alert ${state.flash.type}" role="status" aria-live="polite">
+                      <div class="alert-message">${state.flash.message}</div>
+                      <button class="alert-close" type="button" data-flash-close aria-label="Close notification">×</button>
+                    </div>`
+                  : ''
+          }
           ${content}
         </main>
-        <footer class="modern-footer">Agilify SPA - Phase 3 in progress</footer>
+        <footer class="modern-footer">Copyright © ${year} Amine Ameur — <a href="https://portfolio.codecraftnest.ca" class="muted" target="_blank" rel="noreferrer">portfolio.codecraftnest.ca</a></footer>
       </div>
     `;
 }
@@ -631,23 +736,30 @@ function renderHome() {
     const content = `
       <section class="cards">
         <article class="card">
-          <h3>Secure Authentication</h3>
-          <p>Login uses OTP verification by email for stronger account security.</p>
+          <h3>Agilify — Jira-style Issue Tracking</h3>
+          <p>Agilify is a Jira clone built for managing work across organizations, projects and teams.</p>
+          <p class="muted">Create projects, track tickets, collaborate with comments, and keep everything auditable.</p>
         </article>
         <article class="card">
-          <h3>Password Recovery</h3>
-          <p>Users can request a reset link and set a new password from SPA.</p>
+          <h3>Workflows & Team Collaboration</h3>
+          <p>Move work through a clear ticket lifecycle: <strong>todo</strong> → <strong>in progress</strong> → <strong>review</strong> → <strong>done</strong>.</p>
+          <p class="muted">Assign tickets to members, set priorities and due dates, and use labels to organize tasks.</p>
         </article>
+       
         <article class="card">
-          <h3>Responsive Experience</h3>
-          <p>Mobile-first layout with your gradient + glassmorphism style.</p>
+          <h3>Built as a Modern SPA</h3>
+          <p>Fast, responsive interface with your Agilify theme — optimized for desktop and mobile.</p>
+          <div class="btn-stack">
+            <a class="btn" href="#/login">Get started</a>
+            <a class="btn secondary" href="#/register">Create an account</a>
+          </div>
         </article>
       </section>
     `;
 
     return withShell(content, {
-        heroTitle: 'Agilify Frontend SPA',
-        heroText: 'English-only interface connected to your Laravel API.',
+        heroTitle: 'Agilify',
+        heroText: 'A Jira clone for teams: projects, tickets, workflow and auditability.',
     });
 }
 
@@ -663,11 +775,20 @@ function renderLogin() {
             </div>
             <div class="field">
               <label for="login-password">Password</label>
-              <input class="input" id="login-password" type="password" name="password" required>
+              <div class="password-row" data-password-row>
+                <input class="input" id="login-password" type="password" name="password" required>
+                <button
+                  class="btn secondary btn-compact"
+                  type="button"
+                  data-password-toggle
+                  aria-pressed="false"
+                  aria-label="Show password"
+                >Show</button>
+              </div>
             </div>
-            <button class="btn" type="submit">Send OTP</button>
+            <button class="btn" type="submit">Login</button>
+            <a href="#/forgot-password" class="muted">Forgot Password</a>
           </form>
-          <p class="muted">After this step, a 6-digit OTP is sent to your email.</p>
         </article>
       </section>
     `;
@@ -721,11 +842,29 @@ function renderRegister() {
             </div>
             <div class="field">
               <label for="register-password">Password</label>
-              <input class="input" id="register-password" type="password" name="password" required>
+              <div class="password-row" data-password-row>
+                <input class="input" id="register-password" type="password" name="password" required>
+                <button
+                  class="btn secondary btn-compact"
+                  type="button"
+                  data-password-toggle
+                  aria-pressed="false"
+                  aria-label="Show password"
+                >Show</button>
+              </div>
             </div>
             <div class="field">
               <label for="register-password-confirmation">Confirm password</label>
-              <input class="input" id="register-password-confirmation" type="password" name="password_confirmation" required>
+              <div class="password-row" data-password-row>
+                <input class="input" id="register-password-confirmation" type="password" name="password_confirmation" required>
+                <button
+                  class="btn secondary btn-compact"
+                  type="button"
+                  data-password-toggle
+                  aria-pressed="false"
+                  aria-label="Show password"
+                >Show</button>
+              </div>
             </div>
             <button class="btn" type="submit">Create account</button>
           </form>
@@ -782,11 +921,29 @@ function renderResetPassword() {
             </div>
             <div class="field">
               <label for="reset-password">New password</label>
-              <input class="input" id="reset-password" type="password" name="password" required>
+              <div class="password-row" data-password-row>
+                <input class="input" id="reset-password" type="password" name="password" required>
+                <button
+                  class="btn secondary btn-compact"
+                  type="button"
+                  data-password-toggle
+                  aria-pressed="false"
+                  aria-label="Show password"
+                >Show</button>
+              </div>
             </div>
             <div class="field">
               <label for="reset-password-confirmation">Confirm password</label>
-              <input class="input" id="reset-password-confirmation" type="password" name="password_confirmation" required>
+              <div class="password-row" data-password-row>
+                <input class="input" id="reset-password-confirmation" type="password" name="password_confirmation" required>
+                <button
+                  class="btn secondary btn-compact"
+                  type="button"
+                  data-password-toggle
+                  aria-pressed="false"
+                  aria-label="Show password"
+                >Show</button>
+              </div>
             </div>
             <button class="btn" type="submit">Update password</button>
           </form>
@@ -809,33 +966,83 @@ function renderDashboard() {
         });
     }
 
+    const todoCount = state.projectTickets.filter((ticket) => ticket.status === 'todo').length;
+    const inProgressCount = state.projectTickets.filter((ticket) => ticket.status === 'in_progress').length;
+    const reviewCount = state.projectTickets.filter((ticket) => ticket.status === 'review').length;
+    const doneCount = state.projectTickets.filter((ticket) => ticket.status === 'done').length;
+    const myAssignedCount = state.projectTickets.filter((ticket) => ticket.assignee_id === state.user.id).length;
+    const overdueCount = state.projectTickets.filter((ticket) => {
+        if (!ticket.due_date || ticket.status === 'done') {
+            return false;
+        }
+
+        return new Date(ticket.due_date).getTime() < Date.now();
+    }).length;
+    const activeSessionsCount = state.sessions.filter((session) => !session.deleted_at).length;
+
+    const workspaceState = state.selectedOrganization
+        ? `${state.selectedOrganization.name} / ${state.selectedProject?.name ?? 'No project selected'}`
+        : 'No organization selected yet';
+
     const content = `
       <section class="cards">
         <article class="card">
-          <h3>Profile</h3>
+          <h3>My Profile</h3>
           <p><strong>Name:</strong> ${state.user.name}</p>
           <p><strong>Email:</strong> ${state.user.email}</p>
           <p><strong>Email Verified:</strong> ${state.user.email_verified ? 'Yes' : 'No'}</p>
-          <p><strong>Active:</strong> ${state.user.is_active ? 'Yes' : 'No'}</p>
-          <p><strong>Role:</strong> ${state.isAdmin ? 'Admin' : 'User'}</p>
+          <p><strong>Role:</strong> ${state.isAdmin ? 'Admin' : 'Member'}</p>
+          <p class="muted"><strong>Workspace:</strong> ${workspaceState}</p>
         </article>
+
+        <article class="card">
+          <h3>Jira Snapshot</h3>
+          <p><strong>Organizations:</strong> ${state.organizations.length}</p>
+          <p><strong>Projects:</strong> ${state.projects.length}</p>
+          <p><strong>Tickets in scope:</strong> ${state.projectTickets.length}</p>
+          <p><strong>Assigned to me:</strong> ${myAssignedCount}</p>
+          <p><strong>Overdue:</strong> ${overdueCount}</p>
+          ${state.isAdmin ? `<p><strong>Audit events cached:</strong> ${state.auditLogs.length}</p>` : ''}
+        </article>
+
+        <article class="card">
+          <h3>Ticket Flow</h3>
+          <p><strong>To do:</strong> ${todoCount}</p>
+          <p><strong>In progress:</strong> ${inProgressCount}</p>
+          <p><strong>Review:</strong> ${reviewCount}</p>
+          <p><strong>Done:</strong> ${doneCount}</p>
+          <p class="muted">Use Projects workspace to move tickets across statuses.</p>
+          <a class="btn secondary" href="#/projects">Open Projects Board</a>
+        </article>
+
+        <article class="card">
+          <h3>Operational Health</h3>
+          <p><strong>Active sessions:</strong> ${activeSessionsCount}</p>
+          <p><strong>Total sessions:</strong> ${state.sessions.length}</p>
+          ${state.organizationsError ? `<p class="muted">Organizations error: ${state.organizationsError}</p>` : ''}
+          ${state.projectsError ? `<p class="muted">Projects error: ${state.projectsError}</p>` : ''}
+          <a class="btn secondary" href="#/sessions">Review Sessions</a>
+        </article>
+
         <article class="card">
           <h3>Quick Actions</h3>
-          <a class="btn" href="#/users">Manage Users</a>
-          <a class="btn secondary" href="#/organizations">Manage Organizations</a>
-          <a class="btn secondary" href="#/projects">Manage Projects</a>
-          <a class="btn secondary" href="#/sessions">Manage Sessions</a>
-          ${state.isAdmin ? '<a class="btn secondary" href="#/audit-logs">View Audit Logs</a>' : ''}
-          ${state.isAdmin ? '<a class="btn secondary" href="#/admins">Manage Admins</a>' : ''}
-          <a class="btn secondary" href="#/forgot-password">Forgot Password</a>
-          <button class="btn secondary" id="logout-button" type="button">Logout</button>
+          <div class="btn-stack">
+            ${state.isAdmin ? '<a class="btn" href="#/users">Manage Users</a>' : ''}
+            <a class="btn secondary" href="#/organizations">Manage Organizations</a>
+            <a class="btn secondary" href="#/projects">Manage Projects</a>
+            <a class="btn secondary" href="#/sessions">Manage Sessions</a>
+            ${state.isAdmin ? '<a class="btn secondary" href="#/audit-logs">View Audit Logs</a>' : ''}
+            ${state.isAdmin ? '<a class="btn secondary" href="#/admins">Manage Admins</a>' : ''}
+            <button class="btn secondary" id="dashboard-sync-button" type="button">Sync dashboard data</button>
+            <button class="btn secondary" id="logout-button" type="button">Logout</button>
+          </div>
         </article>
       </section>
     `;
 
     return withShell(content, {
-        heroTitle: `Hello, ${state.user.name}`,
-        heroText: 'You are authenticated and connected to your API session.',
+        heroTitle: `Jira Command Center - ${state.user.name}`,
+        heroText: 'Track delivery flow, risks, and workload from one place.',
     });
 }
 
@@ -845,6 +1052,23 @@ function renderUsers() {
             heroTitle: 'Users',
             heroText: 'Login required.',
         });
+    }
+
+    if (!state.isAdmin) {
+        return withShell(
+            `
+          <section class="cards">
+            <article class="card">
+              <h3>Forbidden</h3>
+              <p>You must be an admin to access this page.</p>
+            </article>
+          </section>
+        `,
+            {
+                heroTitle: 'Users',
+                heroText: 'Insufficient permissions.',
+            },
+        );
     }
 
     const usersView = applyListView(state.users, 'users', ['name', 'email', 'id']);
@@ -890,12 +1114,36 @@ function renderUsers() {
             <h3>Update Password</h3>
             <form id="user-password-form" data-user-id="${selected.id}">
               <div class="field">
-                <label>New password</label>
-                <input class="input" type="password" name="password" required>
+                <label for="user-password">New password</label>
+                <div class="password-row" data-password-row>
+                  <input class="input" id="user-password" type="password" name="password" required>
+                  <button
+                    class="btn secondary btn-compact"
+                    type="button"
+                    data-password-toggle
+                    aria-pressed="false"
+                    aria-label="Show password"
+                  >Show</button>
+                </div>
               </div>
               <div class="field">
-                <label>Confirm password</label>
-                <input class="input" type="password" name="password_confirmation" required>
+                <label for="user-password-confirmation">Confirm password</label>
+                <div class="password-row" data-password-row>
+                  <input
+                    class="input"
+                    id="user-password-confirmation"
+                    type="password"
+                    name="password_confirmation"
+                    required
+                  >
+                  <button
+                    class="btn secondary btn-compact"
+                    type="button"
+                    data-password-toggle
+                    aria-pressed="false"
+                    aria-label="Show password"
+                  >Show</button>
+                </div>
               </div>
               <button class="btn" type="submit">Update password</button>
             </form>
@@ -1320,71 +1568,11 @@ function renderProjects() {
         )
         .join('');
 
-    const project = state.selectedProject;
-    const ticket = state.selectedTicket;
-
-    const labelsMarkup = state.projectLabels
-        .map(
-            (label) => `
-            <div class="card" style="padding:14px;">
-              <p><strong>${label.name}</strong></p>
-              <p class="muted">Color: ${label.color ?? '-'}</p>
-              <form class="label-update-form" data-label-id="${label.id}" style="margin-top:8px;">
-                <div class="field"><label>Name</label><input class="input" name="name" value="${label.name ?? ''}" required></div>
-                <div class="field"><label>Color</label><input class="input" name="color" value="${label.color ?? ''}"></div>
-                <button class="btn secondary" type="submit">Update label</button>
-              </form>
-              <button class="btn secondary label-delete-btn" data-label-id="${label.id}" type="button" style="margin-top:10px;">Delete label</button>
-            </div>
-        `,
-        )
-        .join('');
-
-    const ticketsView = applyListView(state.projectTickets, 'tickets', ['title', 'status', 'priority', 'type', 'id']);
-    const ticketsMarkup = ticketsView.items
-        .map(
-            (item) => `
-            <div class="card" style="padding:14px;">
-              <p><strong>${item.title}</strong></p>
-              <p class="muted">${item.status} / ${item.priority} / ${item.type}</p>
-              <button class="btn secondary ticket-open-btn" data-ticket-id="${item.id}" type="button">Open ticket</button>
-            </div>
-        `,
-        )
-        .join('');
-
-    const commentsMarkup = state.ticketComments
-        .map(
-            (comment) => `
-            <div class="card" style="padding:14px;">
-              <p><strong>${comment.author?.name ?? comment.author_id}</strong></p>
-              <p>${comment.content}</p>
-              <form class="comment-update-form" data-comment-id="${comment.id}" style="margin-top:8px;">
-                <div class="field"><label>Content</label><textarea class="input" name="content" required>${comment.content ?? ''}</textarea></div>
-                <button class="btn secondary" type="submit">Update comment</button>
-              </form>
-              <button class="btn secondary comment-delete-btn" data-comment-id="${comment.id}" type="button" style="margin-top:10px;">Delete comment</button>
-            </div>
-        `,
-        )
-        .join('');
-
-    const ticketLabelsMarkup = state.ticketLabels
-        .map(
-            (item) => `
-            <div class="card" style="padding:14px;">
-              <p><strong>${item.label?.name ?? item.label_id}</strong></p>
-              <p class="muted">${item.label?.color ?? '-'}</p>
-              <button class="btn secondary ticket-label-delete-btn" data-label-id="${item.label_id}" type="button">Remove label</button>
-            </div>
-        `,
-        )
-        .join('');
-
     const content = `
       <section class="cards">
         <article class="card">
           <h3>Workspace Selector</h3>
+          ${state.projectsError ? `<p class="muted">Auto-refresh paused after error: ${state.projectsError}</p>` : ''}
           <div class="field">
             <label>Organization</label>
             <select class="input" id="projects-organization-select">
@@ -1421,13 +1609,108 @@ function renderProjects() {
             <button class="btn secondary" type="button" data-list-page-prev="projects" ${projectsView.page <= 1 ? 'disabled' : ''}>Previous</button>
             <button class="btn secondary" type="button" data-list-page-next="projects" ${projectsView.page >= projectsView.totalPages ? 'disabled' : ''}>Next</button>
           </div>
+          <p class="muted" style="margin-top:12px;">Tip: click “Open” to view a single project page.</p>
+        </article>
+      </section>
+    `;
+
+    return withShell(content, {
+        heroTitle: 'Projects',
+        heroText: 'Select an organization and open a project to view it as a dedicated page.',
+    });
+}
+
+function renderProjectDetails() {
+    if (!state.user) {
+        return withShell(renderProtectedMessage(), {
+            heroTitle: 'Project',
+            heroText: 'Login required.',
+        });
+    }
+
+    const params = getHashParams();
+    const projectId = params.get('id') || '';
+
+    const project = state.selectedProject && state.selectedProject.id === projectId ? state.selectedProject : null;
+
+    function renderAssigneeOptions(selectedId = '') {
+        const seen = new Set();
+        const candidates = [];
+
+        const ownerId = state.selectedOrganization?.owner_id;
+        const owner = state.selectedOrganization?.owner;
+        if (ownerId) {
+            candidates.push({
+                user_id: ownerId,
+                user: owner ?? null,
+            });
+        }
+
+        (state.organizationMembers || []).forEach((member) => candidates.push(member));
+
+        const options = ['<option value="">Unassigned</option>'];
+        for (const member of candidates) {
+            const id = String(member.user_id || '');
+            if (!id || seen.has(id)) {
+                continue;
+            }
+            seen.add(id);
+
+            const label = member.user?.name
+                ? `${member.user.name}${member.user.email ? ` (${member.user.email})` : ''}`
+                : id;
+
+            options.push(
+                `<option value="${id}" ${String(selectedId || '') === id ? 'selected' : ''}>${label}</option>`,
+            );
+        }
+
+        return options.join('');
+    }
+
+    const labelsMarkup = state.projectLabels
+        .map(
+            (label) => `
+            <div class="card" style="padding:14px;">
+              <p><strong>${label.name}</strong></p>
+              <p class="muted">Color: ${label.color ?? '-'}</p>
+              <form class="label-update-form" data-label-id="${label.id}" style="margin-top:8px;">
+                <div class="field"><label>Name</label><input class="input" name="name" value="${label.name ?? ''}" required></div>
+                <div class="field"><label>Color</label><input class="input" name="color" value="${label.color ?? ''}"></div>
+                <button class="btn secondary" type="submit">Update label</button>
+              </form>
+              <button class="btn secondary label-delete-btn" data-label-id="${label.id}" type="button" style="margin-top:10px;">Delete label</button>
+            </div>
+        `,
+        )
+        .join('');
+
+    const ticketsView = applyListView(state.projectTickets, 'tickets', ['title', 'status', 'priority', 'type', 'id']);
+    const ticketsMarkup = ticketsView.items
+        .map(
+            (item) => `
+            <div class="card" style="padding:14px;">
+              <p><strong>${item.title}</strong></p>
+              <p class="muted">${item.status} / ${item.priority} / ${item.type}</p>
+              <p class="muted"><strong>Assignee:</strong> ${item.assignee?.name ?? 'Unassigned'}</p>
+              <button class="btn secondary ticket-open-btn" data-ticket-id="${item.id}" data-project-id="${projectId}" type="button">Open ticket</button>
+            </div>
+        `,
+        )
+        .join('');
+
+    const content = `
+      <section class="cards">
+        <article class="card">
+          <h3>Navigation</h3>
+          <a class="btn secondary" href="#/projects">Back to projects</a>
         </article>
 
         ${
             project
                 ? `
           <article class="card">
-            <h3>Selected Project</h3>
+            <h3>Project</h3>
             <p><strong>${project.name}</strong> (${project.key})</p>
             <form id="project-update-form" data-project-id="${project.id}">
               <div class="field"><label>Name</label><input class="input" name="name" value="${project.name ?? ''}"></div>
@@ -1480,7 +1763,12 @@ function renderProjects() {
                   <option value="story">story</option>
                 </select>
               </div>
-              <div class="field"><label>Assignee ID (optional)</label><input class="input" name="assignee_id"></div>
+              <div class="field">
+                <label>Assignee (optional)</label>
+                <select class="input" name="assignee_id">
+                  ${renderAssigneeOptions('')}
+                </select>
+              </div>
               <div class="field"><label>Due date (optional)</label><input class="input" type="date" name="due_date"></div>
               <button class="btn" type="submit">Create ticket</button>
             </form>
@@ -1507,18 +1795,117 @@ function renderProjects() {
         `
                 : `
           <article class="card">
-            <h3>Select a project</h3>
-            <p>Create or open a project to manage labels and tickets.</p>
+            <h3>Loading project</h3>
+            <p class="muted">Fetching project data...</p>
           </article>
         `
         }
+
+        <article class="card">
+          <h3>Ticket Details</h3>
+          <p class="muted">Open a ticket to view it as a dedicated page.</p>
+        </article>
+      </section>
+    `;
+
+    return withShell(content, {
+        heroTitle: project ? `${project.name} (${project.key})` : 'Project',
+        heroText: 'Single project view (Jira-like) with tickets and workflow.',
+    });
+}
+
+function renderTicketDetails() {
+    if (!state.user) {
+        return withShell(renderProtectedMessage(), {
+            heroTitle: 'Ticket',
+            heroText: 'Login required.',
+        });
+    }
+
+    const params = getHashParams();
+    const ticketId = params.get('id') || '';
+    const projectId = params.get('projectId') || state.selectedProject?.id || '';
+
+    const ticket = state.selectedTicket && state.selectedTicket.id === ticketId ? state.selectedTicket : null;
+
+    function renderAssigneeOptions(selectedId = '') {
+        const seen = new Set();
+        const candidates = [];
+
+        const ownerId = state.selectedOrganization?.owner_id;
+        const owner = state.selectedOrganization?.owner;
+        if (ownerId) {
+            candidates.push({
+                user_id: ownerId,
+                user: owner ?? null,
+            });
+        }
+
+        (state.organizationMembers || []).forEach((member) => candidates.push(member));
+
+        const options = ['<option value="">Unassigned</option>'];
+        for (const member of candidates) {
+            const id = String(member.user_id || '');
+            if (!id || seen.has(id)) {
+                continue;
+            }
+            seen.add(id);
+
+            const label = member.user?.name
+                ? `${member.user.name}${member.user.email ? ` (${member.user.email})` : ''}`
+                : id;
+
+            options.push(
+                `<option value="${id}" ${String(selectedId || '') === id ? 'selected' : ''}>${label}</option>`,
+            );
+        }
+
+        return options.join('');
+    }
+
+    const commentsMarkup = state.ticketComments
+        .map(
+            (comment) => `
+            <div class="card" style="padding:14px;">
+              <p><strong>${comment.author?.name ?? comment.author_id}</strong></p>
+              <p>${comment.content}</p>
+              <form class="comment-update-form" data-comment-id="${comment.id}" style="margin-top:8px;">
+                <div class="field"><label>Content</label><textarea class="input" name="content" required>${comment.content ?? ''}</textarea></div>
+                <button class="btn secondary" type="submit">Update comment</button>
+              </form>
+              <button class="btn secondary comment-delete-btn" data-comment-id="${comment.id}" type="button" style="margin-top:10px;">Delete comment</button>
+            </div>
+        `,
+        )
+        .join('');
+
+    const ticketLabelsMarkup = state.ticketLabels
+        .map(
+            (item) => `
+            <div class="card" style="padding:14px;">
+              <p><strong>${item.label?.name ?? item.label_id}</strong></p>
+              <p class="muted">${item.label?.color ?? '-'}</p>
+              <button class="btn secondary ticket-label-delete-btn" data-label-id="${item.label_id}" type="button">Remove label</button>
+            </div>
+        `,
+        )
+        .join('');
+
+    const content = `
+      <section class="cards">
+        <article class="card">
+          <h3>Navigation</h3>
+          <a class="btn secondary" href="#/project?id=${encodeURIComponent(projectId)}">Back to project</a>
+        </article>
 
         ${
             ticket
                 ? `
           <article class="card">
-            <h3>Selected Ticket</h3>
+            <h3>Ticket</h3>
             <p><strong>${ticket.title}</strong></p>
+            <p class="muted">${ticket.status} / ${ticket.priority} / ${ticket.type}</p>
+            <p class="muted"><strong>Assignee:</strong> ${ticket.assignee?.name ?? 'Unassigned'}</p>
             <form id="ticket-update-form" data-ticket-id="${ticket.id}">
               <div class="field"><label>Title</label><input class="input" name="title" value="${ticket.title ?? ''}"></div>
               <div class="field"><label>Description</label><textarea class="input" name="description">${ticket.description ?? ''}</textarea></div>
@@ -1548,7 +1935,12 @@ function renderProjects() {
                   <option value="story" ${ticket.type === 'story' ? 'selected' : ''}>story</option>
                 </select>
               </div>
-              <div class="field"><label>Assignee ID</label><input class="input" name="assignee_id" value="${ticket.assignee_id ?? ''}"></div>
+              <div class="field">
+                <label>Assignee</label>
+                <select class="input" name="assignee_id">
+                  ${renderAssigneeOptions(ticket.assignee_id ?? '')}
+                </select>
+              </div>
               <div class="field"><label>Reporter ID</label><input class="input" name="reporter_id" value="${ticket.reporter_id ?? ''}"></div>
               <div class="field"><label>Due date</label><input class="input" type="date" name="due_date" value="${ticket.due_date ? String(ticket.due_date).slice(0, 10) : ''}"></div>
               <button class="btn secondary" type="submit">Update ticket</button>
@@ -1583,14 +1975,19 @@ function renderProjects() {
             <div class="cards" style="padding:16px 0 0;">${ticketLabelsMarkup || '<p class="muted">No labels attached.</p>'}</div>
           </article>
         `
-                : ''
+                : `
+          <article class="card">
+            <h3>Loading ticket</h3>
+            <p class="muted">Fetching ticket data...</p>
+          </article>
+        `
         }
       </section>
     `;
 
     return withShell(content, {
-        heroTitle: 'Projects Workspace',
-        heroText: 'Manage projects, labels, tickets, comments and ticket labels.',
+        heroTitle: ticket ? ticket.title : 'Ticket',
+        heroText: 'Single ticket view (Jira-like) with comments and labels.',
     });
 }
 
@@ -1646,17 +2043,6 @@ function renderSessions() {
           </div>
         </article>
 
-        <article class="card">
-          <h3>Create Session (Manual)</h3>
-          <form id="session-create-form">
-            <div class="field"><label>User ID</label><input class="input" name="user_id" required></div>
-            <div class="field"><label>Token</label><input class="input" name="token" minlength="16" required></div>
-            <div class="field"><label>IP (optional)</label><input class="input" name="ip"></div>
-            <div class="field"><label>Agent (optional)</label><input class="input" name="agent"></div>
-            <button class="btn" type="submit">Create session</button>
-          </form>
-        </article>
-
         ${
             selected
                 ? `
@@ -1666,8 +2052,8 @@ function renderSessions() {
             <p><strong>User:</strong> ${selected.user?.email ?? selected.user_id}</p>
             <p><strong>IP:</strong> ${selected.ip ?? '-'}</p>
             <p><strong>Agent:</strong> ${selected.agent ?? '-'}</p>
-            <p><strong>Last used at:</strong> ${selected.last_used_at ?? '-'}</p>
-            <p><strong>Created at:</strong> ${selected.created_at ?? '-'}</p>
+            <p><strong>Last used at:</strong> ${formatDateTime(selected.last_used_at)}</p>
+            <p><strong>Created at:</strong> ${formatDateTime(selected.created_at)}</p>
             <p><strong>Revoked:</strong> ${selected.deleted_at ? 'Yes' : 'No'}</p>
             <button class="btn secondary" id="session-revoke-button" data-session-id="${selected.id}" type="button" ${selected.deleted_at ? 'disabled' : ''}>Revoke session</button>
           </article>
@@ -1759,7 +2145,7 @@ function renderAuditLogs() {
             <p><strong>Entity:</strong> ${selected.entity_type} (${selected.entity_id})</p>
             <p><strong>Performer:</strong> ${selected.performer?.email ?? selected.performed_by ?? 'system'}</p>
             <p><strong>IP Address:</strong> ${selected.ip_address ?? '-'}</p>
-            <p><strong>Created at:</strong> ${selected.created_at ?? '-'}</p>
+            <p><strong>Created at:</strong> ${formatDateTime(selected.created_at)}</p>
             <p><strong>Deleted:</strong> ${selected.is_deleted ? 'Yes' : 'No'}</p>
           </article>
           <article class="card">
@@ -2613,30 +2999,6 @@ async function handleTicketLabelDeleteClick(event) {
     }
 }
 
-async function handleSessionCreateSubmit(event) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const payload = Object.fromEntries(formData.entries());
-    if (!payload.ip) {
-        delete payload.ip;
-    }
-    if (!payload.agent) {
-        delete payload.agent;
-    }
-
-    try {
-        await api('/api/sessions', {
-            method: 'POST',
-            body: JSON.stringify(payload),
-        });
-        await fetchSessions(true);
-        setFlash('success', 'Session created successfully.');
-        event.currentTarget.reset();
-    } catch (error) {
-        setFlash('error', error.message);
-    }
-}
-
 async function handleSessionRevokeClick(event) {
     event.preventDefault();
     const sessionId = event.currentTarget.dataset.sessionId;
@@ -2673,6 +3035,22 @@ async function handleSessionRevokeClick(event) {
     }
 }
 
+async function handleDashboardSyncClick(event) {
+    event.preventDefault();
+
+    try {
+        await fetchOrganizations(true);
+        await fetchProjects(true);
+        await fetchSessions(true);
+        if (state.isAdmin) {
+            await fetchAuditLogs(true);
+        }
+        setFlash('success', 'Dashboard data refreshed.');
+    } catch (error) {
+        setFlash('error', error.message);
+    }
+}
+
 function handleListSearchInput(event) {
     const listKey = event.currentTarget.dataset.listSearch;
     setListSearch(listKey, event.currentTarget.value);
@@ -2691,6 +3069,31 @@ function handleListPrevPageClick(event) {
 function handleListNextPageClick(event) {
     const listKey = event.currentTarget.dataset.listPageNext;
     updateListPage(listKey, 1);
+}
+
+function handlePasswordToggleClick(event) {
+    event.preventDefault();
+
+    const button = event.currentTarget;
+    const container = button.closest('[data-password-row]');
+    const input = container ? container.querySelector('input') : null;
+
+    if (!input) {
+        return;
+    }
+
+    const isCurrentlyPassword = input.type === 'password';
+    input.type = isCurrentlyPassword ? 'text' : 'password';
+
+    const nowShown = input.type === 'text';
+    button.textContent = nowShown ? 'Hide' : 'Show';
+    button.setAttribute('aria-pressed', String(nowShown));
+    button.setAttribute('aria-label', nowShown ? 'Hide password' : 'Show password');
+}
+
+function handleFlashCloseClick(event) {
+    event.preventDefault();
+    clearFlash();
 }
 
 async function handleLogout(event) {
@@ -2713,6 +3116,15 @@ async function handleLogout(event) {
 }
 
 function bindPageEvents() {
+    const flashCloseButton = document.querySelector('[data-flash-close]');
+    if (flashCloseButton) {
+        flashCloseButton.addEventListener('click', handleFlashCloseClick);
+    }
+
+    document.querySelectorAll('[data-password-toggle]').forEach((button) => {
+        button.addEventListener('click', handlePasswordToggleClick);
+    });
+
     const loginForm = document.querySelector('#login-form');
     if (loginForm) {
         loginForm.addEventListener('submit', handleLoginSubmit);
@@ -2881,10 +3293,7 @@ function bindPageEvents() {
     document.querySelectorAll('.project-open-btn').forEach((button) => {
         button.addEventListener('click', (event) => {
             const projectId = event.currentTarget.dataset.projectId;
-            state.selectedTicket = null;
-            state.ticketComments = [];
-            state.ticketLabels = [];
-            loadProjectWorkspace(projectId);
+            navigate(`#/project?id=${encodeURIComponent(projectId)}`);
         });
     });
 
@@ -2908,7 +3317,9 @@ function bindPageEvents() {
 
     document.querySelectorAll('.ticket-open-btn').forEach((button) => {
         button.addEventListener('click', (event) => {
-            loadTicketWorkspace(event.currentTarget.dataset.ticketId);
+            const ticketId = event.currentTarget.dataset.ticketId;
+            const projectId = event.currentTarget.dataset.projectId || state.selectedProject?.id || '';
+            navigate(`#/ticket?id=${encodeURIComponent(ticketId)}&projectId=${encodeURIComponent(projectId)}`);
         });
     });
 
@@ -2943,11 +3354,6 @@ function bindPageEvents() {
     document.querySelectorAll('.ticket-label-delete-btn').forEach((button) => {
         button.addEventListener('click', handleTicketLabelDeleteClick);
     });
-
-    const sessionCreateForm = document.querySelector('#session-create-form');
-    if (sessionCreateForm) {
-        sessionCreateForm.addEventListener('submit', handleSessionCreateSubmit);
-    }
 
     const sessionsRefreshButton = document.querySelector('#sessions-refresh-btn');
     if (sessionsRefreshButton) {
@@ -2996,6 +3402,11 @@ function bindPageEvents() {
         button.addEventListener('click', handleListNextPageClick);
     });
 
+    const dashboardSyncButton = document.querySelector('#dashboard-sync-button');
+    if (dashboardSyncButton) {
+        dashboardSyncButton.addEventListener('click', handleDashboardSyncClick);
+    }
+
     const logoutButton = document.querySelector('#logout-button');
     if (logoutButton) {
         logoutButton.addEventListener('click', handleLogout);
@@ -3014,7 +3425,18 @@ function render() {
     bindPageEvents();
 
     if (path === '#/users') {
-        fetchUsers();
+        if (state.isAdmin) {
+            fetchUsers();
+        }
+    }
+
+    if (path === '#/dashboard' && state.user) {
+        fetchOrganizations();
+        fetchProjects();
+        fetchSessions();
+        if (state.isAdmin) {
+            fetchAuditLogs();
+        }
     }
 
     if (path === '#/admins') {
@@ -3028,7 +3450,58 @@ function render() {
     }
 
     if (path === '#/projects') {
-        fetchProjects();
+        if (!state.projectsError) {
+            fetchProjects();
+        }
+    }
+
+    if (path === '#/project') {
+        const params = getHashParams();
+        const projectId = params.get('id');
+
+        if (projectId) {
+            if (state.loadedProjectWorkspaceId !== projectId && !state.labelsLoading && !state.ticketsLoading) {
+                // Ensure project list exists (org context), then load the selected project once.
+                fetchProjects().then(() => {
+                    if (state.loadedProjectWorkspaceId !== projectId) {
+                        state.selectedTicket = null;
+                        state.ticketComments = [];
+                        state.ticketLabels = [];
+                        loadProjectWorkspace(projectId);
+                    }
+                });
+            }
+        }
+    }
+
+    if (path === '#/ticket') {
+        const params = getHashParams();
+        const ticketId = params.get('id');
+        const projectId = params.get('projectId');
+
+        if (ticketId && projectId) {
+            // Ensure project context is loaded once, then load ticket once.
+            if (state.loadedProjectWorkspaceId !== projectId && !state.labelsLoading && !state.ticketsLoading) {
+                fetchProjects().then(() => {
+                    if (state.loadedProjectWorkspaceId !== projectId) {
+                        state.selectedTicket = null;
+                        state.loadedTicketWorkspaceId = null;
+                        state.ticketComments = [];
+                        state.ticketLabels = [];
+                        loadProjectWorkspace(projectId);
+                    }
+                });
+            }
+
+            if (
+                state.loadedTicketWorkspaceId !== ticketId &&
+                !state.commentsLoading &&
+                !state.ticketLabelsLoading &&
+                state.loadedProjectWorkspaceId === projectId
+            ) {
+                loadTicketWorkspace(ticketId);
+            }
+        }
     }
 
     if (path === '#/sessions') {

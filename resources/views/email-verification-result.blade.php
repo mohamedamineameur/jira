@@ -3,7 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ $title ?? 'Email verification' }}</title>
+    <title>{{ $title ?? 'Email Verification' }} – Agilify</title>
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="description" content="{{ $message ?? 'Email verification result for your Agilify account.' }}">
+    <meta name="theme-color" content="#f3f4f6">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="manifest" href="/site.webmanifest">
     <style>
         body {
             margin: 0;

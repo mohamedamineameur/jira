@@ -16,7 +16,7 @@ class OrganizationMemberController extends Controller
 
     public function index(Request $request, Organization $organization): JsonResponse
     {
-        $this->authorize('manageMembers', $organization);
+        $this->authorize('viewMembership', $organization);
 
         $perPage = (int) $request->integer('per_page', 15);
         $members = $this->organizationMemberService->paginate($organization, $perPage);

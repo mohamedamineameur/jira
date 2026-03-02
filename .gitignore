@@ -27,3 +27,5 @@ Thumbs.db
 node_modules/
 .npm-cache/
 .tmp-config/
+
+docker-compose.yml

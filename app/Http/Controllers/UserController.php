@@ -17,6 +17,8 @@ class UserController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', User::class);
+
         $perPage = (int) $request->integer('per_page', 15);
         $users = $this->userService->paginate($perPage);
 
@@ -53,6 +55,8 @@ class UserController extends Controller
 
     public function show(User $user): JsonResponse
     {
+        $this->authorize('view', $user);
+
         return response()->json([
             'data' => $user,
             'state' => $this->userService->state($user)->value,
@@ -61,6 +65,8 @@ class UserController extends Controller
 
     public function updateProfile(UpdateUserProfileRequest $request, User $user): JsonResponse
     {
+        $this->authorize('update', $user);
+
         $updatedUser = $this->userService->updateProfile($user, $request->validated());
 
         return response()->json([
@@ -71,6 +77,8 @@ class UserController extends Controller
 
     public function updatePassword(UpdateUserPasswordRequest $request, User $user): JsonResponse
     {
+        $this->authorize('update', $user);
+
         $updatedUser = $this->userService->updatePassword($user, $request->validated()['password']);
 
         return response()->json([
@@ -91,6 +99,8 @@ class UserController extends Controller
 
     public function destroy(User $user): JsonResponse
     {
+        $this->authorize('delete', $user);
+
         $deletedUser = $this->userService->delete($user);
 
         return response()->json([

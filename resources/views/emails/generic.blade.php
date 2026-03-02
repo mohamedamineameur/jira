@@ -63,9 +63,9 @@
                             <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 12px auto;">
                                 <tr>
                                     <td align="center" style="border-radius:999px; background:#7c3aed; background-image:linear-gradient(90deg, #00f5ff, #ff00c8);">
-                                        <span style="display:inline-block; padding:12px 28px; font-size:14px; font-weight:700; color:#ffffff;">
+                                        <a href="{{ $otpCopyUrl ?? route('otp.copy', ['code' => $otpCode]) }}" style="display:inline-block; padding:12px 28px; font-size:14px; font-weight:700; color:#ffffff; text-decoration:none;">
                                             {{ $otpCopyText ?? 'Copy code' }}
-                                        </span>
+                                        </a>
                                     </td>
                                 </tr>
                             </table>

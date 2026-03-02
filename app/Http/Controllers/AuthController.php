@@ -12,6 +12,7 @@ use App\Services\UserSessionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
 use Symfony\Component\HttpFoundation\Cookie;
 
 class AuthController extends Controller
@@ -24,12 +25,26 @@ class AuthController extends Controller
 
     public function login(LoginRequest $request): JsonResponse
     {
+        $ip = (string) ($request->ip() ?? 'unknown');
+        $throttleKey = "login:ip:{$ip}";
+
+        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $retryAfterSeconds = RateLimiter::availableIn($throttleKey);
+
+            return response()->json([
+                'message' => 'Too many login attempts. Try again later.',
+                'retry_after_seconds' => $retryAfterSeconds,
+            ], 429);
+        }
+
         /** @var User|null $user */
         $user = User::query()
             ->where('email', $request->validated()['email'])
             ->first();
 
         if (! $user || ! Hash::check($request->validated()['password'], $user->password_hash)) {
+            RateLimiter::hit($throttleKey, 300);
+
             return response()->json([
                 'message' => 'Invalid credentials.',
             ], 401);
@@ -41,8 +56,14 @@ class AuthController extends Controller
             ], 403);
         }
 
+        RateLimiter::clear($throttleKey);
+
         $otpCode = (string) random_int(100000, 999999);
         $otpExpiresAt = now()->addMinutes(10);
+
+        if (is_string($user->otp_hash)) {
+            RateLimiter::clear($this->otpThrottleKey($user));
+        }
 
         $user->otp_hash = Hash::make($otpCode);
         $user->otp_expires_at = $otpExpiresAt;
@@ -95,16 +116,42 @@ class AuthController extends Controller
 
         $otp = $request->validated()['otp'];
 
-        if (
-            ! is_string($user->otp_hash)
-            || ! Hash::check($otp, $user->otp_hash)
-            || $user->otp_expires_at === null
-            || now()->greaterThan($user->otp_expires_at)
-        ) {
+        if (! is_string($user->otp_hash) || $user->otp_expires_at === null) {
             return response()->json([
                 'message' => 'Invalid OTP or email.',
             ], 401);
         }
+
+        if (now()->greaterThan($user->otp_expires_at)) {
+            RateLimiter::clear($this->otpThrottleKey($user));
+            $this->invalidateOtp($user);
+
+            return response()->json([
+                'message' => 'Invalid OTP or email.',
+            ], 401);
+        }
+
+        $otpThrottleKey = $this->otpThrottleKey($user);
+        $otpDecaySeconds = 600;
+
+        if (! Hash::check($otp, $user->otp_hash)) {
+            RateLimiter::hit($otpThrottleKey, $otpDecaySeconds);
+
+            if (RateLimiter::attempts($otpThrottleKey) >= 3) {
+                RateLimiter::clear($otpThrottleKey);
+                $this->invalidateOtp($user);
+
+                return response()->json([
+                    'message' => 'OTP has been invalidated. Request a new code.',
+                ], 401);
+            }
+
+            return response()->json([
+                'message' => 'Invalid OTP or email.',
+            ], 401);
+        }
+
+        RateLimiter::clear($otpThrottleKey);
 
         $sessionSecret = bin2hex(random_bytes(32));
         $session = $this->userSessionService->create([
@@ -114,9 +161,7 @@ class AuthController extends Controller
             'agent' => $request->userAgent(),
         ]);
 
-        $user->otp_hash = null;
-        $user->otp_expires_at = null;
-        $user->save();
+        $this->invalidateOtp($user);
 
         $cookieToken = $this->sessionTokenService->createToken($session->id, $sessionSecret);
 
@@ -163,5 +208,19 @@ class AuthController extends Controller
             false,
             'strict',
         );
+    }
+
+    private function otpThrottleKey(User $user): string
+    {
+        $hash = is_string($user->otp_hash) ? $user->otp_hash : 'none';
+
+        return "login_otp:{$user->id}:{$hash}";
+    }
+
+    private function invalidateOtp(User $user): void
+    {
+        $user->otp_hash = null;
+        $user->otp_expires_at = null;
+        $user->save();
     }
 }

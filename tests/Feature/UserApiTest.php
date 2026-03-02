@@ -77,29 +77,39 @@ class UserApiTest extends TestCase
         $this->deleteJson("/api/users/{$user->id}")->assertUnauthorized();
     }
 
-    public function test_authenticated_user_can_list_and_show_users(): void
+    public function test_admin_can_list_users_and_non_admin_can_only_show_self(): void
     {
-        $authUser = User::factory()->create();
-        $user = User::factory()->create();
+        $adminUser = User::factory()->create();
+        Admin::query()->create([
+            'user_id' => $adminUser->id,
+            'is_active' => true,
+        ]);
+        $regularUser = User::factory()->create();
+        $otherUser = User::factory()->create();
 
-        $this->actingAs($authUser)->getJson('/api/users')
+        $this->actingAs($adminUser)->getJson('/api/users')
             ->assertOk()
             ->assertJsonStructure(['data', 'current_page', 'per_page', 'total']);
 
-        $this->actingAs($authUser)->getJson("/api/users/{$user->id}")
+        $this->actingAs($adminUser)->getJson("/api/users/{$regularUser->id}")
             ->assertOk()
-            ->assertJsonPath('data.id', $user->id);
+            ->assertJsonPath('data.id', $regularUser->id);
+
+        $this->actingAs($regularUser)->getJson('/api/users')->assertForbidden();
+        $this->actingAs($regularUser)->getJson("/api/users/{$regularUser->id}")
+            ->assertOk()
+            ->assertJsonPath('data.id', $regularUser->id);
+        $this->actingAs($regularUser)->getJson("/api/users/{$otherUser->id}")->assertForbidden();
     }
 
     public function test_authenticated_user_can_update_profile(): void
     {
-        $authUser = User::factory()->create();
         $user = User::factory()->create([
             'name' => 'Old Name',
             'email' => 'old@example.com',
         ]);
 
-        $response = $this->actingAs($authUser)->patchJson("/api/users/{$user->id}/profile", [
+        $response = $this->actingAs($user)->patchJson("/api/users/{$user->id}/profile", [
             'name' => 'New Name',
             'email' => 'new@example.com',
         ]);
@@ -111,13 +121,12 @@ class UserApiTest extends TestCase
 
     public function test_profile_update_validates_unique_email(): void
     {
-        $authUser = User::factory()->create();
         $targetUser = User::factory()->create();
         $existingUser = User::factory()->create([
             'email' => 'existing@example.com',
         ]);
 
-        $this->actingAs($authUser)->patchJson("/api/users/{$targetUser->id}/profile", [
+        $this->actingAs($targetUser)->patchJson("/api/users/{$targetUser->id}/profile", [
             'email' => $existingUser->email,
         ])->assertUnprocessable()
             ->assertJsonValidationErrors(['email']);
@@ -125,10 +134,9 @@ class UserApiTest extends TestCase
 
     public function test_authenticated_user_can_update_password(): void
     {
-        $authUser = User::factory()->create();
         $user = User::factory()->create();
 
-        $response = $this->actingAs($authUser)->patchJson("/api/users/{$user->id}/password", [
+        $response = $this->actingAs($user)->patchJson("/api/users/{$user->id}/password", [
             'password' => 'AnotherPass123!',
             'password_confirmation' => 'AnotherPass123!',
         ]);
@@ -141,10 +149,9 @@ class UserApiTest extends TestCase
 
     public function test_password_update_requires_confirmation(): void
     {
-        $authUser = User::factory()->create();
         $user = User::factory()->create();
 
-        $this->actingAs($authUser)->patchJson("/api/users/{$user->id}/password", [
+        $this->actingAs($user)->patchJson("/api/users/{$user->id}/password", [
             'password' => 'AnotherPass123!',
         ])->assertUnprocessable()
             ->assertJsonValidationErrors(['password']);
@@ -189,15 +196,19 @@ class UserApiTest extends TestCase
         $response->assertForbidden();
     }
 
-    public function test_it_soft_deletes_user_with_flags(): void
+    public function test_admin_can_soft_delete_user_with_flags(): void
     {
-        $authUser = User::factory()->create();
+        $adminUser = User::factory()->create();
+        Admin::query()->create([
+            'user_id' => $adminUser->id,
+            'is_active' => true,
+        ]);
         $user = User::factory()->create([
             'is_deleted' => false,
             'deleted_at' => null,
         ]);
 
-        $response = $this->actingAs($authUser)->deleteJson("/api/users/{$user->id}");
+        $response = $this->actingAs($adminUser)->deleteJson("/api/users/{$user->id}");
 
         $response->assertOk()
             ->assertJsonPath('data.is_deleted', true)
@@ -207,5 +218,22 @@ class UserApiTest extends TestCase
             'id' => $user->id,
             'is_deleted' => true,
         ]);
+    }
+
+    public function test_non_admin_cannot_manage_other_user_profile_or_password_or_delete(): void
+    {
+        $authUser = User::factory()->create();
+        $otherUser = User::factory()->create();
+
+        $this->actingAs($authUser)->patchJson("/api/users/{$otherUser->id}/profile", [
+            'name' => 'Nope',
+        ])->assertForbidden();
+
+        $this->actingAs($authUser)->patchJson("/api/users/{$otherUser->id}/password", [
+            'password' => 'AnotherPass123!',
+            'password_confirmation' => 'AnotherPass123!',
+        ])->assertForbidden();
+
+        $this->actingAs($authUser)->deleteJson("/api/users/{$otherUser->id}")->assertForbidden();
     }
 }

@@ -70,6 +70,10 @@ class OrganizationPolicy
             return false;
         }
 
+        if ($authUser->isAdmin()) {
+            return true;
+        }
+
         if ($organization->owner_id === $authUser->id) {
             return true;
         }

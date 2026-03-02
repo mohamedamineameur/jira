@@ -76,6 +76,36 @@ class OrganizationMemberApiTest extends TestCase
             ->assertJsonPath('data.role', 'member');
     }
 
+    public function test_member_can_list_members_index_route(): void
+    {
+        $owner = User::factory()->create();
+        $member = User::factory()->create();
+        $otherMember = User::factory()->create();
+        $organization = Organization::query()->create([
+            'name' => 'Members Index Org',
+            'slug' => 'members-index-org',
+            'owner_id' => $owner->id,
+            'plan' => 'free',
+        ]);
+
+        OrganizationMember::query()->create([
+            'organization_id' => $organization->id,
+            'user_id' => $member->id,
+            'role' => 'member',
+            'joined_at' => now(),
+        ]);
+        OrganizationMember::query()->create([
+            'organization_id' => $organization->id,
+            'user_id' => $otherMember->id,
+            'role' => 'member',
+            'joined_at' => now(),
+        ]);
+
+        $this->actingAs($member)->getJson("/api/organizations/{$organization->id}/members")
+            ->assertOk()
+            ->assertJsonStructure(['data', 'current_page', 'per_page', 'total']);
+    }
+
     public function test_non_member_cannot_access_members_me_route(): void
     {
         $owner = User::factory()->create();

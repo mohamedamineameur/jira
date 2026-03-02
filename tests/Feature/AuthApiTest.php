@@ -13,6 +13,32 @@ class AuthApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_login_is_rate_limited_by_ip_after_five_invalid_attempts_for_five_minutes(): void
+    {
+        User::factory()->create([
+            'email' => 'ratelimit-login@example.com',
+            'password_hash' => 'Password123!',
+            'is_active' => true,
+            'is_deleted' => false,
+        ]);
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->postJson('/api/login', [
+                'email' => 'ratelimit-login@example.com',
+                'password' => 'WrongPassword123!',
+            ])->assertUnauthorized();
+        }
+
+        $blocked = $this->postJson('/api/login', [
+            'email' => 'ratelimit-login@example.com',
+            'password' => 'WrongPassword123!',
+        ]);
+
+        $blocked->assertStatus(429)
+            ->assertJsonPath('message', 'Too many login attempts. Try again later.')
+            ->assertJsonStructure(['retry_after_seconds']);
+    }
+
     public function test_login_fails_with_invalid_credentials(): void
     {
         User::factory()->create([
@@ -116,6 +142,42 @@ class AuthApiTest extends TestCase
 
         $response->assertUnauthorized()
             ->assertJsonPath('message', 'Invalid OTP or email.');
+    }
+
+    public function test_otp_is_invalidated_after_three_invalid_attempts(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'otp-invalidate@example.com',
+            'password_hash' => 'Password123!',
+            'otp_hash' => Hash::make('123456'),
+            'otp_expires_at' => now()->addMinutes(10),
+            'is_active' => true,
+            'is_deleted' => false,
+        ]);
+
+        $this->postJson('/api/login/verify-otp', [
+            'email' => 'otp-invalidate@example.com',
+            'otp' => '000000',
+        ])->assertUnauthorized()
+            ->assertJsonPath('message', 'Invalid OTP or email.');
+
+        $this->postJson('/api/login/verify-otp', [
+            'email' => 'otp-invalidate@example.com',
+            'otp' => '000000',
+        ])->assertUnauthorized()
+            ->assertJsonPath('message', 'Invalid OTP or email.');
+
+        $third = $this->postJson('/api/login/verify-otp', [
+            'email' => 'otp-invalidate@example.com',
+            'otp' => '000000',
+        ]);
+
+        $third->assertUnauthorized()
+            ->assertJsonPath('message', 'OTP has been invalidated. Request a new code.');
+
+        $user->refresh();
+        $this->assertNull($user->otp_hash);
+        $this->assertNull($user->otp_expires_at);
     }
 
     public function test_me_requires_valid_session_cookie(): void

@@ -1,0 +1,51 @@
+{
+    "name": "Agilify",
+    "short_name": "Agilify",
+    "description": "Agile project management for modern teams. Plan sprints, track issues and collaborate in real time.",
+    "start_url": "/",
+    "display": "standalone",
+    "orientation": "portrait-primary",
+    "background_color": "#1f1c2c",
+    "theme_color": "#1f1c2c",
+    "categories": ["productivity", "business", "utilities"],
+    "lang": "en-US",
+    "dir": "ltr",
+    "scope": "/",
+    "icons": [
+        {
+            "src": "/favicon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/favicon.ico",
+            "sizes": "48x48",
+            "type": "image/x-icon"
+        }
+    ],
+    "screenshots": [
+        {
+            "src": "/og-image.png",
+            "sizes": "1200x630",
+            "type": "image/png",
+            "label": "Agilify Dashboard"
+        }
+    ],
+    "shortcuts": [
+        {
+            "name": "New Issue",
+            "short_name": "New Issue",
+            "description": "Create a new issue",
+            "url": "/#/issues/new",
+            "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
+        },
+        {
+            "name": "My Board",
+            "short_name": "Board",
+            "description": "Open your Kanban board",
+            "url": "/#/board",
+            "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
+        }
+    ]
+}

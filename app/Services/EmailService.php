@@ -48,13 +48,16 @@ class EmailService
      */
     public function sendThemed(string $to, string $subject, array $data = []): void
     {
+        $otpCode = $data['otpCode'] ?? null;
+
         $defaults = [
             'navItems' => [],
             'heroTitle' => $subject,
             'heroText' => null,
             'otpCode' => null,
             'otpCopyText' => 'Copy code',
-            'otpCopyHint' => 'Tip: press and hold the code to copy it.',
+            'otpCopyUrl' => $otpCode !== null ? route('otp.copy', ['code' => $otpCode]) : null,
+            'otpCopyHint' => 'Tip: click the button to copy the code to your clipboard.',
             'buttonText' => null,
             'buttonUrl' => null,
             'cards' => [],
