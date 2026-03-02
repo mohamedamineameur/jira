@@ -16,6 +16,7 @@ const state = {
     organizations: [],
     organizationsLoaded: false,
     organizationsLoading: false,
+    organizationsError: null,
     selectedOrganization: null,
     organizationMembers: [],
     membersLoading: false,
@@ -178,6 +179,7 @@ function resetUserAdminCollections() {
     state.organizations = [];
     state.organizationsLoaded = false;
     state.organizationsLoading = false;
+    state.organizationsError = null;
     state.selectedOrganization = null;
     state.organizationMembers = [];
     state.membersLoading = false;
@@ -218,6 +220,7 @@ async function api(path, options = {}) {
         credentials: 'include',
         headers: {
             'Content-Type': 'application/json',
+            Accept: 'application/json',
             ...(options.headers || {}),
         },
         ...options,
@@ -318,6 +321,14 @@ async function fetchAdmins(force = false) {
 }
 
 async function fetchOrganizations(force = false) {
+    if (force) {
+        state.organizationsError = null;
+    }
+
+    if (state.organizationsError && !force) {
+        return;
+    }
+
     if (!state.user || (state.organizationsLoaded && !force) || state.organizationsLoading) {
         return;
     }
@@ -329,12 +340,14 @@ async function fetchOrganizations(force = false) {
         const res = await apiGet('/api/organizations?per_page=50', { force });
         state.organizations = Array.isArray(res?.data) ? res.data : [];
         state.organizationsLoaded = true;
+        state.organizationsError = null;
 
         if (!state.selectedOrganization && state.organizations.length > 0) {
             state.selectedOrganization = state.organizations[0];
             await loadOrganizationDetails(state.selectedOrganization.id);
         }
     } catch (error) {
+        state.organizationsError = error.message;
         setFlash('error', error.message);
     } finally {
         state.organizationsLoading = false;
@@ -1242,6 +1255,7 @@ function renderOrganizations() {
       <section class="cards">
         <article class="card">
           <h3>Organizations List</h3>
+          ${state.organizationsError ? `<p class="muted">Auto-refresh paused after error: ${state.organizationsError}</p>` : ''}
           <div class="field">
             <label>Search organizations</label>
             <input class="input" data-list-search="organizations" value="${organizationsView.search}" placeholder="Search by name, slug, plan">
@@ -3008,7 +3022,9 @@ function render() {
     }
 
     if (path === '#/organizations') {
-        fetchOrganizations();
+        if (!state.organizationsError) {
+            fetchOrganizations();
+        }
     }
 
     if (path === '#/projects') {

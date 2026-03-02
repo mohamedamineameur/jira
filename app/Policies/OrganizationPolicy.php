@@ -10,7 +10,7 @@ class OrganizationPolicy
 {
     public function viewAny(User $authUser): bool
     {
-        return ! $authUser->is_deleted && $authUser->is_active;
+        return ! $authUser->is_deleted;
     }
 
     public function view(User $authUser, Organization $organization): bool
@@ -20,7 +20,7 @@ class OrganizationPolicy
 
     public function create(User $authUser): bool
     {
-        return ! $authUser->is_deleted && $authUser->is_active;
+        return ! $authUser->is_deleted;
     }
 
     public function update(User $authUser, Organization $organization): bool

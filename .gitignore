@@ -26,3 +26,4 @@ Thumbs.db
 # Node
 node_modules/
 .npm-cache/
+.tmp-config/

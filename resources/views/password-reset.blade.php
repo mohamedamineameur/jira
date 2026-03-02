@@ -39,13 +39,33 @@
         }
 
         .modern-nav a:hover {
-            color: #00f5ff;
+            color: #0Request URL
+http://localhost:8001/api/organizations?per_page=50
+Request Method
+GET
+Status Code
+403 Forbidden
+Remote Address
+127.0.0.1:8001
+Referrer Policy
+strict-origin-when-cross-origin
+0f5ff;
         }
 
         .hero {
             padding: 72px 8% 40px;
             text-align: center;
         }
+        Request URL
+http://localhost:8001/api/organizations?per_page=50
+Request Method
+GET
+Status Code
+403 Forbidden
+Remote Address
+127.0.0.1:8001
+Referrer Policy
+strict-origin-when-cross-origin
 
         .hero h2 {
             font-size: 3rem;

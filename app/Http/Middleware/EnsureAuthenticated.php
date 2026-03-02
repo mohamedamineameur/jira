@@ -7,6 +7,7 @@ use App\Services\SessionTokenService;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -21,7 +22,15 @@ class EnsureAuthenticated
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if ($request->user()) {
+        $resolvedUser = $request->user();
+        if ($resolvedUser) {
+            if ($resolvedUser->is_deleted || ! $resolvedUser->is_active) {
+                return new JsonResponse([
+                    'message' => 'Unauthenticated.',
+                ], 401);
+            }
+
+            Auth::setUser($resolvedUser);
             return $next($request);
         }
 
@@ -63,6 +72,7 @@ class EnsureAuthenticated
 
         $request->attributes->set('current_session', $session);
         $request->setUserResolver(static fn () => $user);
+        Auth::setUser($user);
 
         return $next($request);
     }
