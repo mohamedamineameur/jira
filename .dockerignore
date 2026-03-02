@@ -1,0 +1,57 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Docker files (not needed inside image)
+Dockerfile
+.dockerignore
+docker-compose.yml
+docker-compose*.yml
+
+# Node
+node_modules/
+.npm-cache/
+.tmp-config/
+
+# Laravel dev artifacts
+/vendor
+/public/build
+/public/hot
+/public/storage
+/storage/*.key
+/storage/pail
+/storage/logs
+/storage/framework/cache
+/storage/framework/sessions
+/storage/framework/views
+/bootstrap/cache
+
+# Environment files (injected at runtime)
+.env
+.env.*
+!.env.example
+
+# Tests
+/tests
+phpunit.xml
+.phpunit.result.cache
+/.phpunit.cache
+
+# IDE & OS
+.idea/
+.vscode/
+.fleet/
+.nova/
+.zed/
+.phpactor.json
+.DS_Store
+Thumbs.db
+*.log
+
+# CI
+.github/
+
+# Docs
+README.md
+CHANGELOG.md

@@ -6,6 +6,7 @@ on:
 
 jobs:
   quality:
+
     runs-on: ubuntu-latest
 
     steps:
@@ -53,3 +54,37 @@ jobs:
 
       - name: Run tests
         run: composer test
+
+  build:
+    runs-on: ubuntu-latest
+    needs: quality
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      # 1️⃣ Récupérer le code EXACT du repo (branche main)
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2️⃣ Afficher le commit utilisé
+      - name: Print commit SHA
+        run: |
+          echo "Building commit: $GITHUB_SHA"
+          git rev-parse HEAD
+
+      # 3️⃣ Login Docker Hub
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # 4️⃣ Build + Push Docker image (CACHE DÉSACTIVÉ)
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          no-cache: true
+          tags: |
+            aminefaw89/agilify:latest
+            aminefaw89/agilify:${{ github.sha }}
