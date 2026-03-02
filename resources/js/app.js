@@ -447,7 +447,7 @@ async function loadProjectWorkspace(projectId, force = false) {
         const [projectRes, labelsRes, ticketsRes] = await Promise.all([
             apiGet(`/api/organizations/${organizationId}/projects/${projectId}`, { force }),
             apiGet(`/api/organizations/${organizationId}/projects/${projectId}/labels?per_page=50`, { force }),
-            apiGet(`/api/organizations/${organizationId}/projouects/${projectId}/tickets?per_page=50`, { force }),
+            apiGet(`/api/organizations/${organizationId}/projects/${projectId}/tickets?per_page=50`, { force }),
         ]);
 
         state.selectedProject = projectRes.data ?? null;

@@ -52,7 +52,7 @@ Route::middleware(['auth.api', 'audit.log'])->group(function (): void {
     Route::get('organizations/{organization}/projects/{project}/labels/{label}', [LabelController::class, 'show']);
     Route::patch('organizations/{organization}/projects/{project}/labels/{label}', [LabelController::class, 'update']);
     Route::delete('organizations/{organization}/projects/{project}/labels/{label}', [LabelController::class, 'destroy']);
-    Route::get('organizations/{organization}/projouects/{project}/tickets', [TicketController::class, 'index']);
+    Route::get('organizations/{organization}/projects/{project}/tickets', [TicketController::class, 'index']);
     Route::post('organizations/{organization}/projects/{project}/tickets', [TicketController::class, 'store']);
     Route::get('organizations/{organization}/projects/{project}/tickets/{ticket}', [TicketController::class, 'show']);
     Route::patch('organizations/{organization}/projects/{project}/tickets/{ticket}', [TicketController::class, 'update']);
